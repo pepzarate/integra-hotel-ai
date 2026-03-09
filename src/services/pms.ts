@@ -1,4 +1,5 @@
 import { query } from './database';
+import { cacheGet, cacheSet, cacheKey } from './cache';
 
 // ─────────────────────────────────────────────────────────
 // 1. TIPOS DE HABITACIÓN disponibles en el hotel
@@ -102,6 +103,16 @@ export async function consultarDisponibilidadCompleta(
   fechaEntrada: string,
   fechaSalida: string
 ) {
+  const key = cacheKey('consulta', idHotel, fechaEntrada, fechaSalida);
+
+  const cached = await cacheGet<any>(key);
+  if (cached) {
+    console.log(`[CACHE] HIT — ${key}`);
+    return { ...cached, fromCache: true };
+  }
+
+  console.log(`[CACHE] MISS — consultando SOFTcalli...`);
+
   const [disponibilidad, tarifas, precios] = await Promise.all([
     getDisponibilidad(idHotel, fechaEntrada, fechaSalida),
     getTarifasVigentes(idHotel, fechaEntrada, fechaSalida),
@@ -113,7 +124,7 @@ export async function consultarDisponibilidadCompleta(
     / (1000 * 60 * 60 * 24)
   );
 
-  return {
+  const resultado = {
     hotel: { id: idHotel },
     fechaEntrada,
     fechaSalida,
@@ -123,6 +134,9 @@ export async function consultarDisponibilidadCompleta(
     precios,
     consultadoEn: new Date().toISOString(),
   };
+
+  await cacheSet(key, resultado);
+  return resultado;
 }
 
 // ─────────────────────────────────────────────────────────

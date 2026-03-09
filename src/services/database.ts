@@ -8,14 +8,15 @@ const config: sql.config = {
   database: process.env.DB_NAME || '',
   user:     process.env.DB_USER || '',
   password: process.env.DB_PASSWORD || '',
+  requestTimeout: 60000, 
   options: {
     encrypt:              process.env.DB_ENCRYPT === 'true',
     trustServerCertificate: true,
-    connectTimeout:       30000,
-    requestTimeout:       30000,
+    connectTimeout:       60000,
+    requestTimeout:       60000,
   },
   pool: {
-    max: 10, min: 0, idleTimeoutMillis: 30000
+    max: 10, min: 0, idleTimeoutMillis: 60000
   }
 };
 
