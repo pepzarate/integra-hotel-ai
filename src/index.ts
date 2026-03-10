@@ -179,40 +179,17 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
   console.log(`\n✓ Integra Hotel AI corriendo en http://localhost:${PORT}`);
-  console.log(`  Verifica BD: curl http://localhost:${PORT}/api/status\n`);
 
-  // Pre-calentar el pool de SQL Server
+  // Cargar catálogo Wubook
   try {
-    const { consultarDisponibilidadCompleta } = await import('./services/pms');
-
-    // Pre-calentar los próximos 14 días en paralelo
-    const fechas: { entrada: string; salida: string }[] = [];
-    for (let i = 0; i < 14; i++) {
-      const entrada = new Date(Date.now() + i * 86400000).toISOString().split('T')[0];
-      const salida = new Date(Date.now() + (i + 1) * 86400000).toISOString().split('T')[0];
-      fechas.push({ entrada, salida });
-    }
-
-    // También agregar fin de semanas completos (2 y 3 noches)
-    for (let i = 0; i < 12; i++) {
-      const entrada = new Date(Date.now() + i * 86400000).toISOString().split('T')[0];
-      const salida2 = new Date(Date.now() + (i + 2) * 86400000).toISOString().split('T')[0];
-      const salida3 = new Date(Date.now() + (i + 3) * 86400000).toISOString().split('T')[0];
-      fechas.push({ entrada, salida: salida2 });
-      fechas.push({ entrada, salida: salida3 });
-    }
-
-    // Ejecutar en lotes de 5 para no saturar SQL
-    for (let i = 0; i < fechas.length; i += 5) {
-      const lote = fechas.slice(i, i + 5);
-      await Promise.all(lote.map(f =>
-        consultarDisponibilidadCompleta(1, f.entrada, f.salida).catch(() => null)
-      ));
-    }
-
-    console.log(`  ✓ Pool SQL pre-calentado — ${fechas.length} combinaciones en caché`);
+    const { loadRoomCatalog } = await import('./services/wubook');
+    await loadRoomCatalog();
   } catch (err) {
-    console.warn(`  ⚠ Pre-calentado falló, primer request será más lento`);
+    console.warn(`  ⚠ Wubook: no se pudo cargar el catálogo — ${err}`);
   }
+
+  // Inicializar BD propia
   await initDb();
+
+  console.log(`  ✓ Listo\n`);
 });

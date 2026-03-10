@@ -17,9 +17,9 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
   }
 }
 
-export async function cacheSet(key: string, value: any): Promise<void> {
+export async function cacheSet(key: string, value: any, ttl: number = TTL_SEGUNDOS): Promise<void> {
   try {
-    await redis.set(key, value, { ex: TTL_SEGUNDOS });
+    await redis.set(key, value, { ex: ttl });
   } catch (err) {
     console.warn('[CACHE] Error al escribir:', err);
   }

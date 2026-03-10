@@ -5,21 +5,21 @@ export const tools: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'check_availability',
-      description: 'Consulta habitaciones disponibles en el hotel para un rango de fechas y número de personas.',
+      description: 'Consulta habitaciones disponibles en Wubook para un rango de fechas y número de personas.',
       parameters: {
         type: 'object',
         properties: {
           fecha_entrada: {
             type: 'string',
-            description: 'Fecha de entrada en formato YYYY-MM-DD. Si el huésped dice "el viernes", calcula la fecha real.',
+            description: 'Fecha de entrada en formato YYYY-MM-DD',
           },
           fecha_salida: {
             type: 'string',
-            description: 'Fecha de salida en formato YYYY-MM-DD.',
+            description: 'Fecha de salida en formato YYYY-MM-DD',
           },
           personas: {
             type: 'number',
-            description: 'Número de personas. Si no lo menciona, asumir 1.',
+            description: 'Número de personas (adultos). Default 1.',
           },
         },
         required: ['fecha_entrada', 'fecha_salida'],

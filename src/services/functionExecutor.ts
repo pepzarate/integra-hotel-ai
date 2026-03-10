@@ -11,23 +11,27 @@ export async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
 
     case 'check_availability': {
-      const validation = validateDates(args.fecha_entrada, args.fecha_salida);
-      if (!validation.valid) {
-        return JSON.stringify({ error: validation.error });
+      const { fecha_entrada, fecha_salida, personas = 1 } = args;
+
+      const validation = validateDates(fecha_entrada, fecha_salida);
+      if (!validation.valid) return validation.error!;
+
+      const { fetchAvailability } = await import('./wubook');
+      const habitaciones = await fetchAvailability(fecha_entrada, fecha_salida, personas);
+
+      if (habitaciones.length === 0) {
+        return `No hay habitaciones disponibles para ${personas} persona(s) del ${fecha_entrada} al ${fecha_salida}.`;
       }
-      const data = await consultarDisponibilidadCompleta(
-        ID_HOTEL,
-        args.fecha_entrada,
-        args.fecha_salida
+
+      const noches = Math.ceil(
+        (new Date(fecha_salida).getTime() - new Date(fecha_entrada).getTime()) / 86400000
       );
-      const disponibles = (data.disponibilidad as any[]).filter(h => h.disponibles > 0);
-      return JSON.stringify({
-        fechas: { entrada: args.fecha_entrada, salida: args.fecha_salida, noches: data.noches },
-        disponibles,
-        mensaje: disponibles.length > 0
-          ? `Hay ${disponibles.length} tipos de habitación disponibles`
-          : 'No hay habitaciones disponibles para esas fechas',
-      });
+
+      const lista = habitaciones.map(h =>
+        `- **${h.name}** (${h.occupancy} pax máx): $${h.price.toLocaleString('es-MX')} MXN/noche — ${h.availableRooms} disponible(s)`
+      ).join('\n');
+
+      return `Disponibilidad del ${fecha_entrada} al ${fecha_salida} (${noches} noche${noches > 1 ? 's' : ''}) para ${personas} persona(s):\n\n${lista}`;
     }
 
     case 'get_room_rates': {
