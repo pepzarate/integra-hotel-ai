@@ -3,16 +3,24 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { chatWithSofia } from './services/sofia';
 import { errorHandler } from './middleware/errorHandler';
 import { wrap } from './middleware/asyncWrapper';
 import { testConnection } from './services/database';
 import { generateSessionId, getSession, appendToSession } from './services/session';
 import { initDb, getPrereservaciones } from './services/ownDb';
+
 dotenv.config();
 
 const app = express();
-app.use(helmet());
+app.use((req, res, next) => {
+  if (req.path.startsWith('/widget')) {
+    helmet({ contentSecurityPolicy: false })(req, res, next);
+  } else {
+    helmet()(req, res, next);
+  }
+});
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
@@ -163,6 +171,7 @@ app.get('/prereservaciones', wrap(async (_req, res) => {
   });
 }));
 
+app.use('/widget', express.static(path.join(__dirname, '../widget')));
 
 app.use(errorHandler);
 
@@ -175,10 +184,33 @@ app.listen(PORT, async () => {
   // Pre-calentar el pool de SQL Server
   try {
     const { consultarDisponibilidadCompleta } = await import('./services/pms');
-    const hoy = new Date().toISOString().split('T')[0];
-    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    await consultarDisponibilidadCompleta(1, hoy, manana);
-    console.log(`  ✓ Pool SQL pre-calentado y caché listo`);
+
+    // Pre-calentar los próximos 14 días en paralelo
+    const fechas: { entrada: string; salida: string }[] = [];
+    for (let i = 0; i < 14; i++) {
+      const entrada = new Date(Date.now() + i * 86400000).toISOString().split('T')[0];
+      const salida = new Date(Date.now() + (i + 1) * 86400000).toISOString().split('T')[0];
+      fechas.push({ entrada, salida });
+    }
+
+    // También agregar fin de semanas completos (2 y 3 noches)
+    for (let i = 0; i < 12; i++) {
+      const entrada = new Date(Date.now() + i * 86400000).toISOString().split('T')[0];
+      const salida2 = new Date(Date.now() + (i + 2) * 86400000).toISOString().split('T')[0];
+      const salida3 = new Date(Date.now() + (i + 3) * 86400000).toISOString().split('T')[0];
+      fechas.push({ entrada, salida: salida2 });
+      fechas.push({ entrada, salida: salida3 });
+    }
+
+    // Ejecutar en lotes de 5 para no saturar SQL
+    for (let i = 0; i < fechas.length; i += 5) {
+      const lote = fechas.slice(i, i + 5);
+      await Promise.all(lote.map(f =>
+        consultarDisponibilidadCompleta(1, f.entrada, f.salida).catch(() => null)
+      ));
+    }
+
+    console.log(`  ✓ Pool SQL pre-calentado — ${fechas.length} combinaciones en caché`);
   } catch (err) {
     console.warn(`  ⚠ Pre-calentado falló, primer request será más lento`);
   }

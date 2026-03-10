@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Test Embed</title>
+</head>
+
+<body style="background:#1a3a5c;min-height:100vh;display:flex;align-items:center;justify-content:center;">
+    <h1 style="color:white;font-family:serif;opacity:0.3;">Sitio del Hotel</h1>
+
+    <!-- Así se instala el widget en cualquier sitio -->
+    <script>
+        window.SofiaConfig = {
+            backendUrl: 'http://localhost:3000',
+            hotelName: 'Hotel Demo',
+        };
+    </script>
+    <script src="embed.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sofía Widget - Hotel Demo</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="hotel-site">
+        <div class="hotel-name">
+            <h1>Hotel Demo</h1>
+        </div>
+        <div class="hotel-tagline">
+            <p>Centro Histórico - Ciudad de México</p>
+        </div>
+    </div>
+    <!-- Widget Sofía -->
+    <div id="sofia-widget">
+
+        <!-- Botón flotante -->
+        <button id="sofia-toggle">
+            <span id="sofia-badge"></span>
+            <!-- Ícono chat -->
+            <svg class="icon-chat" width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15C21 16.1 20.1 17 19 17H7L3 21V5C3 3.9 3.9 3 5 3H19C20.1 3 21 3.9 21 5V15Z"
+                    fill="white" />
+            </svg>
+            <!-- Ícono cerrar -->
+            <svg class="icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6L18 18" stroke="white" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+        </button>
+
+        <!-- Ventana de chat -->
+        <div id="sofia-window">
+
+            <!-- Header -->
+            <div id="sofia-header">
+                <div class="sofia-avatar">🌊</div>
+                <div class="sofia-header-info">
+                    <div class="sofia-header-name">Sofía</div>
+                    <div class="sofia-header-status">
+                        <div class="status-dot"></div>
+                        En línea ahora
+                    </div>
+                </div>
+                <button id="sofia-close">×</button>
+            </div>
+
+            <!-- Mensajes -->
+            <div id="sofia-messages"></div>
+
+            <!-- Input -->
+            <div id="sofia-input-area">
+                <input type="text" id="sofia-input" placeholder="Escribe tu mensaje..." />
+                <button id="sofia-send">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="white" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Branding -->
+            <div id="sofia-branding">✦ Powered by Integra Hotel AI</div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
