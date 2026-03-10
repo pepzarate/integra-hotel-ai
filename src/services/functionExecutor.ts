@@ -1,4 +1,7 @@
 import { consultarDisponibilidadCompleta } from './pms';
+import { validateDates } from '../utils/dates';
+import { insertPrereservacion } from './ownDb';
+
 
 const ID_HOTEL = 1; // Hotel Gillow
 
@@ -8,6 +11,10 @@ export async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
 
     case 'check_availability': {
+      const validation = validateDates(args.fecha_entrada, args.fecha_salida);
+      if (!validation.valid) {
+        return JSON.stringify({ error: validation.error });
+      }
       const data = await consultarDisponibilidadCompleta(
         ID_HOTEL,
         args.fecha_entrada,
@@ -24,6 +31,10 @@ export async function executeTool(name: string, args: any): Promise<string> {
     }
 
     case 'get_room_rates': {
+      const validation = validateDates(args.fecha_entrada, args.fecha_salida);
+      if (!validation.valid) {
+        return JSON.stringify({ error: validation.error });
+      }
       const data = await consultarDisponibilidadCompleta(
         ID_HOTEL,
         args.fecha_entrada,
@@ -31,8 +42,8 @@ export async function executeTool(name: string, args: any): Promise<string> {
       );
       const precios = args.tipo_habitacion
         ? (data.precios as any[]).filter(p =>
-            p.strClaveTipo === args.tipo_habitacion && p.intAdulto === 1
-          )
+          p.strClaveTipo === args.tipo_habitacion && p.intAdulto === 1
+        )
         : (data.precios as any[]).filter(p => p.intAdulto === 1);
       return JSON.stringify({ precios, noches: data.noches });
     }
@@ -64,16 +75,33 @@ export async function executeTool(name: string, args: any): Promise<string> {
     }
 
     case 'create_prereservation': {
-      // Por ahora guardamos en memoria — Día 3 conectamos BD propia
       const folio = `PRE-${Date.now()}`;
-      console.log(`[PRE-RESERVACIÓN] ${folio}`, args);
-      return JSON.stringify({
-        folio,
-        status: 'confirmada',
-        mensaje: 'Pre-reservación registrada exitosamente',
-        datos: args,
-        instrucciones: 'El equipo de reservaciones se pondrá en contacto en menos de 2 horas para confirmar.',
-      });
+      try {
+        const registro = await insertPrereservacion({
+          folio,
+          nombre: args.nombre,
+          email: args.email,
+          telefono: args.telefono,
+          tipo_habitacion: args.tipo_habitacion,
+          fecha_entrada: args.fecha_entrada,
+          fecha_salida: args.fecha_salida,
+          personas: args.personas,
+          notas: args.notas,
+        });
+        console.log(`[PRE-RESERVACIÓN] Guardada en BD — ${folio}`);
+        return JSON.stringify({
+          folio: registro.folio,
+          status: 'confirmada',
+          mensaje: 'Pre-reservación registrada exitosamente',
+          instrucciones: 'El equipo de reservaciones se pondrá en contacto en menos de 2 horas para confirmar.',
+        });
+      } catch (err: any) {
+        console.error(`[PRE-RESERVACIÓN] Error al guardar:`, err.message);
+        return JSON.stringify({
+          error: 'No se pudo registrar la pre-reservación',
+          detalle: err.message,
+        });
+      }
     }
 
     default:

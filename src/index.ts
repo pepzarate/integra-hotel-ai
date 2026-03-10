@@ -7,6 +7,8 @@ import { chatWithSofia } from './services/sofia';
 import { errorHandler } from './middleware/errorHandler';
 import { wrap } from './middleware/asyncWrapper';
 import { testConnection } from './services/database';
+import { generateSessionId, getSession, appendToSession } from './services/session';
+import { initDb, getPrereservaciones } from './services/ownDb';
 dotenv.config();
 
 const app = express();
@@ -17,7 +19,7 @@ app.use(express.json());
 
 app.get('/api/status', wrap(async (_req, res) => {
   const dbOk = await testConnection();
-  res.json({ 
+  res.json({
     status: dbOk ? 'ok' : 'db_error',
     project: 'Integra Hotel AI — Agente de Voz',
     database: dbOk ? '✓ SOFTcalli conectado' : '✗ Sin conexión',
@@ -25,12 +27,12 @@ app.get('/api/status', wrap(async (_req, res) => {
   });
 }));
 
-import { 
-  getAllTables, 
-  getTableColumns, 
+import {
+  getAllTables,
+  getTableColumns,
   sampleTable,
   searchTables,
-  searchColumns 
+  searchColumns
 } from './services/explorer';
 
 // ── EXPLORADOR DE SCHEMA ──────────────────────────────
@@ -59,12 +61,12 @@ app.get('/explorer/search/columns/:keyword', wrap(async (req, res) => {
   res.json({ keyword: req.params.keyword, results });
 }));
 
-import { 
-  getTiposHabitacion, 
+import {
+  getTiposHabitacion,
   getDisponibilidad,
   getTarifasVigentes,
   getPreciosPorTipo,
-  consultarDisponibilidadCompleta 
+  consultarDisponibilidadCompleta
 } from './services/pms';
 import { error, timeStamp } from 'node:console';
 
@@ -117,13 +119,18 @@ app.get('/pms/:idHotel/precios', wrap(async (req, res) => {
 }));
 
 app.post('/chat', wrap(async (req, res) => {
-  const { message, history = [] } = req.body;
+  const { message, session_id } = req.body;
 
   if (!message || typeof message !== 'string') {
     res.status(400).json({ error: 'El campo "message" es requerido' });
     return;
   }
 
+  // Recuperar o crear sesión
+  const sessionId = session_id || generateSessionId();
+  const history = await getSession(sessionId);
+
+  console.log(`[SOFIA] Sesión: ${sessionId} | Mensajes en historial: ${history.length}`);
   console.log(`[SOFIA] Usuario: ${message}`);
 
   const timeout = new Promise<never>((_, reject) =>
@@ -135,19 +142,45 @@ app.post('/chat', wrap(async (req, res) => {
     timeout,
   ]);
 
+  // Guardar en Redis para la próxima vuelta
+  await appendToSession(sessionId, message, reply as string);
+
   console.log(`[SOFIA] Sofía: ${reply}`);
 
   res.json({
     reply,
+    session_id: sessionId,
     timestamp: new Date().toISOString(),
   });
 }));
+
+// ── PRE-RESERVACIONES ─────────────────────────────────
+app.get('/prereservaciones', wrap(async (_req, res) => {
+  const registros = await getPrereservaciones();
+  res.json({
+    total: registros.length,
+    registros,
+  });
+}));
+
 
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n✓ Integra Hotel AI corriendo en http://localhost:${PORT}`);
   console.log(`  Verifica BD: curl http://localhost:${PORT}/api/status\n`);
+
+  // Pre-calentar el pool de SQL Server
+  try {
+    const { consultarDisponibilidadCompleta } = await import('./services/pms');
+    const hoy = new Date().toISOString().split('T')[0];
+    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    await consultarDisponibilidadCompleta(1, hoy, manana);
+    console.log(`  ✓ Pool SQL pre-calentado y caché listo`);
+  } catch (err) {
+    console.warn(`  ⚠ Pre-calentado falló, primer request será más lento`);
+  }
+  await initDb();
 });
