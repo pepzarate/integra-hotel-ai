@@ -1,5 +1,6 @@
-import express from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -7,11 +8,8 @@ import path from 'path';
 import { chatWithSofia } from './services/sofia';
 import { errorHandler } from './middleware/errorHandler';
 import { wrap } from './middleware/asyncWrapper';
-import { testConnection } from './services/database';
 import { generateSessionId, getSession, appendToSession } from './services/session';
 import { initDb, getPrereservaciones } from './services/ownDb';
-
-dotenv.config();
 
 const app = express();
 app.use((req, res, next) => {
@@ -26,23 +24,15 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 app.get('/api/status', wrap(async (_req, res) => {
-  const dbOk = await testConnection();
   res.json({
-    status: dbOk ? 'ok' : 'db_error',
-    project: 'Integra Hotel AI — Agente de Voz',
-    database: dbOk ? '✓ SOFTcalli conectado' : '✗ Sin conexión',
+    status: 'ok',
+    project: 'Integra Hotel AI — Widget Sofía',
+    version: '2.0',
     timestamp: new Date().toISOString()
   });
 }));
 
-import {
-  getAllTables,
-  getTableColumns,
-  sampleTable,
-  searchTables,
-  searchColumns
-} from './services/explorer';
-
+/*
 // ── EXPLORADOR DE SCHEMA ──────────────────────────────
 app.get('/explorer/tables', wrap(async (_req, res) => {
   const tables = await getAllTables();
@@ -68,63 +58,7 @@ app.get('/explorer/search/columns/:keyword', wrap(async (req, res) => {
   const results = await searchColumns(String(req.params.keyword));
   res.json({ keyword: req.params.keyword, results });
 }));
-
-import {
-  getTiposHabitacion,
-  getDisponibilidad,
-  getTarifasVigentes,
-  getPreciosPorTipo,
-  consultarDisponibilidadCompleta
-} from './services/pms';
-import { error, timeStamp } from 'node:console';
-
-// ── PMS CONECTOR ──────────────────────────────────────────
-app.get('/pms/:idHotel/tipos', wrap(async (req, res) => {
-  const data = await getTiposHabitacion(Number(req.params.idHotel));
-  res.json(data);
-}));
-
-app.get('/pms/:idHotel/disponibilidad', wrap(async (req, res) => {
-  const { entrada, salida } = req.query as Record<string, string>;
-  if (!entrada || !salida) {
-    res.status(400).json({ error: 'Se requieren parámetros: entrada y salida (YYYY-MM-DD)' });
-    return;
-  }
-  const data = await getDisponibilidad(Number(req.params.idHotel), entrada, salida);
-  res.json(data);
-}));
-
-app.get('/pms/:idHotel/tarifas', wrap(async (req, res) => {
-  const { entrada, salida } = req.query as Record<string, string>;
-  if (!entrada || !salida) {
-    res.status(400).json({ error: 'Se requieren parámetros: entrada y salida (YYYY-MM-DD)' });
-    return;
-  }
-  const data = await getTarifasVigentes(Number(req.params.idHotel), entrada, salida);
-  res.json(data);
-}));
-
-app.get('/pms/:idHotel/consulta', wrap(async (req, res) => {
-  const { entrada, salida } = req.query as Record<string, string>;
-  if (!entrada || !salida) {
-    res.status(400).json({ error: 'Se requieren parámetros: entrada y salida (YYYY-MM-DD)' });
-    return;
-  }
-  const data = await consultarDisponibilidadCompleta(
-    Number(req.params.idHotel), entrada, salida
-  );
-  res.json(data);
-}));
-
-app.get('/pms/:idHotel/precios', wrap(async (req, res) => {
-  const { entrada, salida } = req.query as Record<string, string>;
-  if (!entrada || !salida) {
-    res.status(400).json({ error: 'Se requieren: entrada y salida (YYYY-MM-DD)' });
-    return;
-  }
-  const data = await getPreciosPorTipo(Number(req.params.idHotel), entrada, salida);
-  res.json(data);
-}));
+*/
 
 app.post('/chat', wrap(async (req, res) => {
   const { message, session_id } = req.body;
@@ -142,7 +76,7 @@ app.post('/chat', wrap(async (req, res) => {
   console.log(`[SOFIA] Usuario: ${message}`);
 
   const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Sofía tardó demasiado en responder')), 30000)
+    setTimeout(() => reject(new Error('Sofía tardó demasiado en responder')), 60000)
   );
 
   const reply = await Promise.race([

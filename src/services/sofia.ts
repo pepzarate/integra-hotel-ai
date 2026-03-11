@@ -49,7 +49,7 @@ export async function chatWithSofia(userMessage: string, history: Message[] = []
     messages.push(assistantMessage);
 
     // Ejecutar cada función que Sofía pidió
-     const toolResults = await Promise.all(
+    const toolResults = await Promise.all(
       assistantMessage.tool_calls!
         .filter((toolCall: any) => toolCall.type === 'function')
         .map(async (toolCall: any) => {

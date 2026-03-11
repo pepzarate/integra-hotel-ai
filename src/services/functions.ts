@@ -29,31 +29,6 @@ export const tools: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_room_rates',
-      description: 'Obtiene los precios por tipo de habitación para un rango de fechas.',
-      parameters: {
-        type: 'object',
-        properties: {
-          fecha_entrada: {
-            type: 'string',
-            description: 'Fecha de entrada en formato YYYY-MM-DD.',
-          },
-          fecha_salida: {
-            type: 'string',
-            description: 'Fecha de salida en formato YYYY-MM-DD.',
-          },
-          tipo_habitacion: {
-            type: 'string',
-            description: 'Clave del tipo: IND, DBL, JRS, SU, KS, MS, SNUP. Opcional.',
-          },
-        },
-        required: ['fecha_entrada', 'fecha_salida'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'get_hotel_info',
       description: 'Devuelve información general del hotel: nombre, dirección, teléfono, sitio web, servicios.',
       parameters: {

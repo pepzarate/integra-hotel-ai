@@ -1,9 +1,6 @@
-import { consultarDisponibilidadCompleta } from './pms';
 import { validateDates } from '../utils/dates';
 import { insertPrereservacion } from './ownDb';
 
-
-const ID_HOTEL = 1; // Hotel Gillow
 
 export async function executeTool(name: string, args: any): Promise<string> {
   console.log(`[TOOL] Ejecutando: ${name}`, args);
@@ -16,40 +13,28 @@ export async function executeTool(name: string, args: any): Promise<string> {
       const validation = validateDates(fecha_entrada, fecha_salida);
       if (!validation.valid) return validation.error!;
 
-      const { fetchAvailability } = await import('./wubook');
-      const habitaciones = await fetchAvailability(fecha_entrada, fecha_salida, personas);
+      try {
+        const { fetchAvailability } = await import('./wubook');
+        const habitaciones = await fetchAvailability(fecha_entrada, fecha_salida, personas);
 
-      if (habitaciones.length === 0) {
-        return `No hay habitaciones disponibles para ${personas} persona(s) del ${fecha_entrada} al ${fecha_salida}.`;
+        if (habitaciones.length === 0) {
+          return `No hay habitaciones disponibles para ${personas} persona(s) del ${fecha_entrada} al ${fecha_salida}. Te recomendamos consultar otras fechas o contactarnos directamente al 55 55 18 14 40.`;
+        }
+
+        const noches = Math.ceil(
+          (new Date(fecha_salida).getTime() - new Date(fecha_entrada).getTime()) / 86400000
+        );
+
+        const lista = habitaciones.map(h =>
+          `- **${h.name}** (${h.occupancy} pax máx): $${h.price.toLocaleString('es-MX')} MXN/noche — ${h.availableRooms} disponible(s)`
+        ).join('\n');
+
+        return `Disponibilidad del ${fecha_entrada} al ${fecha_salida} (${noches} noche${noches > 1 ? 's' : ''}) para ${personas} persona(s):\n\n${lista}`;
+
+      } catch (err: any) {
+        console.error(`[WUBOOK] Error al consultar disponibilidad:`, err.message);
+        return `En este momento tenemos un problema técnico para consultar disponibilidad en línea. Por favor contáctanos directamente:\n\n📞 55 55 18 14 40\n✉️ reservaciones@hotelgillow.com\n\nCon gusto te atendemos.`;
       }
-
-      const noches = Math.ceil(
-        (new Date(fecha_salida).getTime() - new Date(fecha_entrada).getTime()) / 86400000
-      );
-
-      const lista = habitaciones.map(h =>
-        `- **${h.name}** (${h.occupancy} pax máx): $${h.price.toLocaleString('es-MX')} MXN/noche — ${h.availableRooms} disponible(s)`
-      ).join('\n');
-
-      return `Disponibilidad del ${fecha_entrada} al ${fecha_salida} (${noches} noche${noches > 1 ? 's' : ''}) para ${personas} persona(s):\n\n${lista}`;
-    }
-
-    case 'get_room_rates': {
-      const validation = validateDates(args.fecha_entrada, args.fecha_salida);
-      if (!validation.valid) {
-        return JSON.stringify({ error: validation.error });
-      }
-      const data = await consultarDisponibilidadCompleta(
-        ID_HOTEL,
-        args.fecha_entrada,
-        args.fecha_salida
-      );
-      const precios = args.tipo_habitacion
-        ? (data.precios as any[]).filter(p =>
-          p.strClaveTipo === args.tipo_habitacion && p.intAdulto === 1
-        )
-        : (data.precios as any[]).filter(p => p.intAdulto === 1);
-      return JSON.stringify({ precios, noches: data.noches });
     }
 
     case 'get_hotel_info': {

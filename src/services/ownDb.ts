@@ -59,8 +59,8 @@ export async function insertPrereservacion(data: {
             data.email,
             data.telefono,
             data.tipo_habitacion,
-            data.fecha_entrada,
-            data.fecha_salida,
+            data.fecha_entrada.split('T')[0],
+            data.fecha_salida.split('T')[0],
             data.personas,
             data.notas || null,
         ]
@@ -69,7 +69,23 @@ export async function insertPrereservacion(data: {
 }
 
 export async function getPrereservaciones(): Promise<any[]> {
-    return queryOwn(
-        `SELECT * FROM prereservaciones ORDER BY created_at DESC LIMIT 50`
+    const rows = await queryOwn(
+        `SELECT 
+      id,
+      folio,
+      nombre,
+      email,
+      telefono,
+      tipo_habitacion,
+      personas,
+      TO_CHAR(fecha_entrada, 'YYYY-MM-DD') AS fecha_entrada,
+      TO_CHAR(fecha_salida,  'YYYY-MM-DD') AS fecha_salida,
+      notas,
+      status,
+      TO_CHAR(created_at AT TIME ZONE 'America/Mexico_City', 'YYYY-MM-DD HH24:MI:SS') AS fecha_prereservacion
+    FROM prereservaciones 
+    ORDER BY created_at DESC 
+    LIMIT 50`
     );
+    return rows;
 }
