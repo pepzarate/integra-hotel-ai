@@ -96,6 +96,60 @@ app.post('/chat', wrap(async (req, res) => {
   });
 }));
 
+app.get('/chat/stream', async (req, res) => {
+  const { message, session_id } = req.query as Record<string, string>;
+
+  if (!message) {
+    res.status(400).json({ error: 'El parámetro "message" es requerido' });
+    return;
+  }
+
+  // Headers SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sessionId = session_id || generateSessionId();
+  const history = await getSession(sessionId);
+  const startTime = Date.now();
+
+  console.log(`\n[SOFIA-STREAM] ── Nuevo request ──────────────────────`);
+  console.log(`[SOFIA-STREAM] Sesión:   ${sessionId}`);
+  console.log(`[SOFIA-STREAM] Historial: ${history.length} mensaje(s)`);
+  console.log(`[SOFIA-STREAM] Usuario:  "${message}"`);
+
+  let tokenCount = 0;
+  let firstTokenAt: number | null = null;
+
+  try {
+    const { streamWithSofia } = await import('./services/sofia');
+
+    const reply = await streamWithSofia(message, history, (token) => {
+      if (!firstTokenAt) {
+        firstTokenAt = Date.now();
+        console.log(`[SOFIA-STREAM] Primer token en ${firstTokenAt - startTime}ms`);
+      }
+      tokenCount++;
+      res.write(`data: ${JSON.stringify({ token })}\n\n`);
+    });
+
+    await appendToSession(sessionId, message, reply);
+
+    res.write(`data: ${JSON.stringify({ done: true, session_id: sessionId })}\n\n`);
+
+    const totalTime = Date.now() - startTime;
+    console.log(`[SOFIA-STREAM] Completado — ${reply.length} chars · ${tokenCount} tokens · ${totalTime}ms total`);
+    console.log(`[SOFIA-STREAM] ───────────────────────────────────────\n`);
+
+  } catch (err: any) {
+    console.error(`[SOFIA-STREAM] ❌ Error (${Date.now() - startTime}ms):`, err.message);
+    res.write(`data: ${JSON.stringify({ error: 'No pude procesar tu mensaje' })}\n\n`);
+  } finally {
+    res.end();
+  }
+});
+
 // ── PRE-RESERVACIONES ─────────────────────────────────
 app.get('/prereservaciones', wrap(async (_req, res) => {
   const registros = await getPrereservaciones();

@@ -436,3 +436,23 @@ body {
         right: 0;
     }
 }
+
+.sofia-cursor {
+    display: inline-block;
+    animation: sofia-blink 0.7s step-end infinite;
+    color: var(--sofia-primary);
+    font-weight: bold;
+    margin-left: 1px;
+}
+
+@keyframes sofia-blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}

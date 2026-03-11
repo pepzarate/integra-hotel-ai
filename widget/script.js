@@ -30,35 +30,113 @@ function toggleWidget() {
 }
 
 // ── Enviar mensaje ──────────────────────────────────────
+
+function appendStreamBubble(id) {
+    window._pendingBubbleId = id;
+    // Solo muestra el indicador — la burbuja se crea al llegar el primer token
+}
+
+function updateStreamBubble(id, text) {
+    // Primera vez — ocultar indicador y crear burbuja
+    if (window._pendingBubbleId === id) {
+        hideTyping();
+        window._pendingBubbleId = null;
+
+        const messages = document.getElementById('sofia-messages');
+        const row = document.createElement('div');
+        row.className = 'msg-row sofia';
+        row.id = id;
+        row.innerHTML = `
+            <div class="msg-avatar">🌊</div>
+            <div class="msg-bubble sofia"></div>
+        `;
+        messages.appendChild(row);
+    }
+
+    const row = document.getElementById(id);
+    if (!row) return;
+    const bubble = row.querySelector('.msg-bubble');
+    if (!bubble) return;
+    bubble.innerHTML = parseMarkdown(text) + '<span class="sofia-cursor">▋</span>';
+
+    document.getElementById('sofia-messages').scrollTop = 99999;
+}
+
 async function sendMessage() {
     const input = document.getElementById('sofia-input');
     const message = input.value.trim();
     if (!message || isTyping) return;
 
     input.value = '';
+    isTyping = true;
+    input.disabled = true;
+
     appendMessage('user', message);
-    showTyping();
+    showTyping(); // Mostrar indicador inmediatamente
+
+    const bubbleId = 'sofia-msg-' + Date.now();
+    window._pendingBubbleId = bubbleId;
+
+    let fullReply = '';
 
     try {
-        const res = await fetch(`${BACKEND_URL}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, session_id: sessionId }),
-        });
+        const params = new URLSearchParams({ message });
+        if (sessionId) params.append('session_id', sessionId);
 
-        const data = await res.json();
+        const response = await fetch(`${BACKEND_URL}/chat/stream?${params}`);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        if (data.session_id) {
-            sessionId = data.session_id;
-            localStorage.setItem('sofia_session_id', sessionId);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const data = JSON.parse(line.slice(6));
+
+                    if (data.token) {
+                        fullReply += data.token;
+                        updateStreamBubble(bubbleId, fullReply);
+                    }
+
+                    if (data.done) {
+                        sessionId = data.session_id;
+                        localStorage.setItem('sofia_session_id', sessionId);
+                    }
+
+                    if (data.error) {
+                        if (window._pendingBubbleId) {
+                            hideTyping();
+                            window._pendingBubbleId = null;
+                        }
+                        updateStreamBubble(bubbleId, 'Lo siento, ocurrió un error. Por favor intenta de nuevo.');
+                    }
+                } catch (_) { }
+            }
         }
-
-        hideTyping();
-        appendMessage('sofia', data.reply || 'Lo siento, no pude procesar tu mensaje.');
-
     } catch (err) {
-        hideTyping();
-        appendMessage('sofia', 'Hubo un problema de conexión. Por favor intenta de nuevo en un momento.');
+        if (window._pendingBubbleId) {
+            hideTyping();
+            window._pendingBubbleId = null;
+        }
+        updateStreamBubble(bubbleId, 'No se pudo conectar con el servidor.');
+    } finally {
+        // Quitar cursor al terminar
+        const finalRow = document.getElementById(bubbleId);
+        if (finalRow) {
+            const cursor = finalRow.querySelector('.sofia-cursor');
+            if (cursor) cursor.remove();
+        }
+        isTyping = false;
+        input.disabled = false;
+        input.focus();
     }
 }
 
