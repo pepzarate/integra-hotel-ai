@@ -416,4 +416,37 @@ El plan original de 50 días se reformuló. El MVP es un widget de chat (no voz)
 
 ---
 
+Sesión 5 — Streaming en tiempo real
+Fecha: Miércoles 11 de marzo 2026
+Horas trabajadas: ~3 horas
+Estado al cierre: ✅ Sofía responde con streaming SSE — primera palabra visible en menos de 1 segundo
+Lo que construí
+streamWithSofia() en sofia.ts:
+Nueva función paralela a chatWithSofia que usa stream: true en la llamada a OpenAI. Los tokens llegan fragmentados via for await y se envían al cliente inmediatamente a través de un callback onToken. El loop maneja correctamente el caso donde Sofía necesita ejecutar function calls antes de generar texto — acumula los tool calls fragmentados, los ejecuta, agrega los resultados al historial y continúa el stream para la respuesta final.
+Endpoint GET /chat/stream:
+Nuevo endpoint SSE en index.ts. Usa GET en lugar de POST para compatibilidad con EventSource y fetch con streams. Configura los headers Content-Type: text/event-stream, Cache-Control: no-cache y Connection: keep-alive. Cada token se envía como data: {"token":"..."} y al terminar envía data: {"done":true, "session_id":"..."} para que el widget actualice la sesión.
+Widget — indicador de escritura + transición suave:
+El flujo de UX quedó así:
+
+Usuario envía mensaje → aparecen los 3 puntos animados inmediatamente
+Llega el primer token de OpenAI → los 3 puntos desaparecen, aparece la burbuja de Sofía
+Los tokens van apareciendo en tiempo real con el cursor parpadeante ▋
+Al recibir done: true → el cursor desaparece y la burbuja queda estática
+
+Problemas encontrados
+Problema 1 — Doble showTyping() y burbuja duplicada
+sendMessage llamaba showTyping() directamente y appendStreamBubble también lo llamaba, creando dos typing-row en el DOM. Además appendStreamBubble creaba la burbuja con el id antes de tiempo, y updateStreamBubble intentaba crear otra con el mismo id — getElementById devolvía la primera (vacía) y el texto nunca aparecía.
+Solución: Centralizar la responsabilidad. sendMessage llama showTyping() y guarda window._pendingBubbleId. appendStreamBubble queda vacía — solo existe para mantener compatibilidad. updateStreamBubble detecta la primera llamada por _pendingBubbleId, ejecuta hideTyping() y crea la burbuja real en ese momento.
+Problema 2 — Variables con nombres diferentes a los asumidos
+El código del widget usaba isTyping, sessionId, showTyping() y hideTyping() — nombres distintos a los que se usaron en el primer borrador del streaming. Causó varios ReferenceError en consola.
+Aprendizaje: Antes de agregar código nuevo a un archivo existente, revisar las variables globales declaradas al inicio. Hubiera evitado dos iteraciones de debug.
+Decisión de UX
+Se evaluó poner un setTimeout fijo de 2 segundos antes de mostrar los tokens para que la experiencia se sintiera más "humana". Se descartó — el delay artificial ralentiza la experiencia en conversaciones largas y se siente falso. La solución adoptada usa el delay natural del primer token de OpenAI (0.5–1.5 segundos), que es honesto y suficiente para crear la sensación de que alguien está pensando al otro lado.
+Pendiente
+
+embed.js — sincronizar con los cambios de streaming antes de la Sesión 6
+
+Reflexión
+El streaming es la diferencia entre un chatbot y una conversación. Ver las palabras aparecer una por una — aunque sea rápido — activa en el usuario la sensación de que hay algo vivo al otro lado. Es el cambio de experiencia más grande desde que el widget apareció por primera vez en pantalla.
+
 *Última actualización: Sesión de limpieza — 11 de marzo 2026*
