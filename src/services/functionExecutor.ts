@@ -1,6 +1,6 @@
 import { validateDates } from '../utils/dates';
 import { insertPrereservacion } from './ownDb';
-
+import { sendPrereservacionEmail } from './email';
 
 export async function executeTool(name: string, args: any): Promise<string> {
   console.log(`[TOOL] Ejecutando: ${name}`, args);
@@ -78,6 +78,27 @@ export async function executeTool(name: string, args: any): Promise<string> {
           notas: args.notas,
         });
         console.log(`[PRE-RESERVACIÓN] Guardada en BD — ${folio}`);
+        const noches = Math.ceil(
+          (new Date(args.fecha_salida).getTime() - new Date(args.fecha_entrada).getTime()) / 86400000
+        );
+        // Notificar al recepcionista — fallo silencioso para no afectar la respuesta al huésped
+        try {
+          await sendPrereservacionEmail({
+            folio: registro.folio,
+            nombre: args.nombre,
+            email: args.email,
+            telefono: args.telefono,
+            tipo_habitacion: args.tipo_habitacion,
+            fecha_entrada: args.fecha_entrada,
+            fecha_salida: args.fecha_salida,
+            noches,
+            personas: args.personas,
+            notas: args.notas,
+          });
+        } catch (emailErr: any) {
+          // El email falló pero la pre-reservación ya está guardada — solo logueamos
+          console.error(`[EMAIL] Error al enviar notificación — ${folio}:`, emailErr.message);
+        }
         return JSON.stringify({
           folio: registro.folio,
           status: 'confirmada',
