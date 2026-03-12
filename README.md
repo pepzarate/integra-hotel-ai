@@ -1,39 +1,34 @@
-# Integra Hotel AI — Agente de Voz Sofía
+# Integra Hotel AI — Agente de Chat Sofía
 
-Agente de voz con inteligencia artificial para hoteles 3-4★. Consulta disponibilidad en tiempo real desde el PMS del hotel, atiende huéspedes 24/7 y captura pre-reservaciones automáticamente.
+Widget de chat con inteligencia artificial para hoteles 3-4★ en México. Se instala en el sitio web del hotel con dos líneas de código y despliega a Sofía, una asistente virtual que consulta disponibilidad en tiempo real, responde preguntas sobre servicios y políticas, y captura pre-reservaciones automáticamente.
+
+**Estado actual:** En producción — hotel piloto en instalación.
 
 ---
 
-## ¿Qué es esto?
+## ¿Qué hace Sofía?
 
-**Sofía** es una asistente virtual hotelera que se conecta directamente al sistema de gestión del hotel (PMS) para responder preguntas de disponibilidad y tarifas con datos reales, sin inventar información.
-
-El proyecto se entrega como un **widget embebible** que cualquier hotel puede instalar en su sitio web en minutos.
-
-**Estado actual:** En desarrollo con hotel de prueba.
+- Consulta disponibilidad y precios en tiempo real desde Wubook (channel manager)
+- Responde preguntas sobre servicios, políticas y datos de contacto del hotel
+- Captura pre-reservaciones con folio único y las guarda en base de datos propia
+- Responde en el idioma del huésped — español e inglés
+- Streaming de respuestas token por token (primera palabra visible en < 1.5s)
+- Memoria de conversación por sesión (30 minutos)
 
 ---
 
 ## Arquitectura
 
 ```
-Widget (HTML/JS)
-      ↓
-  POST /chat
-      ↓
-  Agente Sofía (GPT-4o mini + Function Calling)
-      ↓
-  ┌──────────────────────────────────┐
-  │  Function Executor               │
-  │  ├── check_availability          │
-  │  ├── get_room_rates              │
-  │  ├── get_hotel_info              │
-  │  ├── get_policies                │
-  │  └── create_prereservation       │
-  └──────────────────────────────────┘
-        ↓                 ↓
-   Redis (Upstash)    PMS Hotel (SQL Server)
-   TTL: 5 min         Solo lectura ⚠️
+Sitio web del hotel
+  └── embed.js (2 líneas de instalación)
+        └── Widget Sofía (Coastal Light)
+              └── GET /chat/stream (SSE)
+                    └── Agente Sofía (GPT-4o mini)
+                          ├── check_availability → Wubook XML-RPC → Redis caché
+                          ├── get_hotel_info     → datos configurables
+                          ├── get_policies       → datos configurables
+                          └── create_prereservation → PostgreSQL Neon
 ```
 
 ---
@@ -44,25 +39,16 @@ Widget (HTML/JS)
 |------|-----------|
 | Runtime | Node.js v22 + TypeScript |
 | Framework | Express |
-| IA | OpenAI GPT-4o mini + Function Calling |
-| PMS | SQL Server (mssql) |
-| Caché | Redis — Upstash (REST) |
-| Seguridad | Helmet + CORS |
-| Logs | Morgan |
-| Deploy | Railway / Render (próximamente) |
+| IA | OpenAI GPT-4o mini — function calling + streaming SSE |
+| Channel Manager | Wubook XML-RPC (solo lectura) |
+| Caché | Upstash Redis — TTL 15 min disponibilidad, 30 min sesión |
+| Base de datos propia | PostgreSQL serverless — Neon |
+| Widget | Vanilla JS + CSS custom (Coastal Light) |
+| Deploy | Railway (producción) |
 
 ---
 
-## Requisitos previos
-
-- Node.js v18 o superior
-- Acceso a una instancia de SQL Server con el PMS del hotel
-- Cuenta en [Upstash](https://upstash.com) (tier gratuito funciona)
-- API Key de [OpenAI](https://platform.openai.com)
-
----
-
-## Instalación
+## Instalación en desarrollo
 
 ```bash
 # 1. Clonar el repositorio
@@ -84,23 +70,25 @@ npm run dev
 
 ## Variables de entorno
 
-Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
-
 ```env
-# SQL Server — PMS Hotel
-DB_SERVER=192.168.x.x         # IP del servidor SQL desde WSL
-DB_NAME=nombre_base_de_datos
-DB_USER=tu_usuario
-DB_PASSWORD=tu_password
+# OpenAI
+OPENAI_API_KEY=sk-proj-...
+
+# Wubook
+WUBOOK_TOKEN=wr_...
+WUBOOK_LCODE=1234567890
 
 # Redis — Upstash
-UPSTASH_REDIS_REST_URL=https://tu-url.upstash.io
-UPSTASH_REDIS_REST_TOKEN=tu_token
+UPSTASH_REDIS_REST_URL=https://...upstash.io
+UPSTASH_REDIS_REST_TOKEN=...
 
-# OpenAI
-OPENAI_API_KEY=sk-tu-key
+# PostgreSQL — Neon
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 
-# Servidor
+# Admin
+ADMIN_TOKEN=tu-token-seguro
+
+# Servidor (no requerido en Railway — se inyecta automáticamente)
 PORT=3000
 ```
 
@@ -108,49 +96,60 @@ PORT=3000
 
 ---
 
-## Endpoints disponibles
+## Endpoints
 
-### API Status
+### Status
 ```
 GET /api/status
 ```
-Verifica que el servidor y la conexión al PMS están activos.
 
-### Agente Sofía
+### Agente Sofía — Streaming SSE
+```
+GET /chat/stream?message=...&session_id=...
+```
+Responde con eventos SSE:
+```
+data: {"token":"¡"}
+data: {"token":"Hola"}
+...
+data: {"done":true,"session_id":"uuid"}
+```
+
+### Agente Sofía — Síncrono (legacy)
 ```
 POST /chat
 Content-Type: application/json
-
-{
-  "message": "¿Tienen habitación doble del 15 al 18 de marzo?",
-  "history": []  // opcional — historial de mensajes anteriores
-}
+{ "message": "...", "session_id": "..." }
 ```
 
-Respuesta:
-```json
-{
-  "reply": "Sí, tenemos 4 habitaciones dobles disponibles...",
-  "timestamp": "2026-03-09T14:00:00.000Z"
-}
+### Pre-reservaciones (protegido)
+```
+GET /prereservaciones
+Header: x-admin-token: tu-token
 ```
 
-### Conector PMS
+### Widget (archivos estáticos)
 ```
-GET /pms/:idHotel/tipos
-GET /pms/:idHotel/disponibilidad?entrada=YYYY-MM-DD&salida=YYYY-MM-DD
-GET /pms/:idHotel/tarifas?entrada=YYYY-MM-DD&salida=YYYY-MM-DD
-GET /pms/:idHotel/precios?entrada=YYYY-MM-DD&salida=YYYY-MM-DD
-GET /pms/:idHotel/consulta?entrada=YYYY-MM-DD&salida=YYYY-MM-DD
+GET /widget/embed.js
+GET /widget/sofia.js
+GET /widget/sofia.css
 ```
 
-### Explorador de Schema (desarrollo)
-```
-GET /explorer/tables
-GET /explorer/tables/:name/columns
-GET /explorer/tables/:name/sample
-GET /explorer/search/tables/:keyword
-GET /explorer/search/columns/:keyword
+---
+
+## Instalación del widget en el sitio del hotel
+
+```html
+
+  window.SofiaConfig = {
+    backendUrl:   'https://tu-backend.up.railway.app',
+    hotelName:    'Hotel Mi Nombre',
+    primaryColor: '#2E7DAF',   // opcional
+    darkColor:    '#1a5f8a',   // opcional
+    avatar:       '🌊',        // opcional
+  };
+
+
 ```
 
 ---
@@ -160,57 +159,56 @@ GET /explorer/search/columns/:keyword
 ```
 integra-hotel-ai/
 ├── src/
-│   ├── index.ts                  # Servidor Express y rutas
+│   ├── index.ts                  # Servidor Express, rutas, SSE
 │   ├── middleware/
-│   │   ├── errorHandler.ts       # Manejo global de errores
-│   │   └── asyncWrapper.ts       # Wrapper para rutas async
-│   └── services/
-│       ├── database.ts           # Pool de conexión SQL Server
-│       ├── explorer.ts           # Explorador de schema del PMS
-│       ├── pms.ts                # Conector PMS — consultas reales
-│       ├── cache.ts              # Caché Redis con Upstash
-│       ├── functions.ts          # Schemas de function calling OpenAI
-│       ├── functionExecutor.ts   # Ejecutor de herramientas de Sofía
-│       └── sofia.ts              # Agente Sofía — lógica principal
-├── .env                          # Credenciales (no en repo)
-├── .env.example                  # Plantilla de variables
-├── .gitignore
+│   │   ├── errorHandler.ts
+│   │   └── asyncWrapper.ts
+│   ├── services/
+│   │   ├── sofia.ts              # Agente — chatWithSofia + streamWithSofia
+│   │   ├── functions.ts          # Schemas de tools OpenAI
+│   │   ├── functionExecutor.ts   # Ejecutor de herramientas
+│   │   ├── wubook.ts             # Conector Wubook XML-RPC
+│   │   ├── cache.ts              # Redis helper
+│   │   ├── session.ts            # Sesiones Redis
+│   │   └── ownDb.ts              # PostgreSQL Neon
+│   └── utils/
+│       └── dates.ts              # Validación y formateo de fechas
+├── widget/
+│   ├── embed.js                  # Script autocontenido — instalación 2 líneas
+│   ├── sofia.js                  # Lógica del widget
+│   ├── sofia.css                 # Estilos Coastal Light
+│   └── dev.html                  # Página de desarrollo local
+├── .env.example
 ├── package.json
-├── tsconfig.json
-├── SCHEMA.md                     # Documentación del schema del PMS
-└── DIARIO.md                     # Bitácora de desarrollo
+└── tsconfig.json
 ```
 
 ---
 
-## Reglas críticas de desarrollo
+## Reglas críticas
 
-**1. El PMS es SOLO LECTURA**
-Nunca escribir en la base de datos del PMS del cliente. Las pre-reservaciones se guardan en nuestra propia base de datos. Violar esta regla puede corromper datos reales del hotel.
+**1. Wubook es SOLO LECTURA**
+El conector nunca escribe en el channel manager. Toda escritura va a PostgreSQL Neon (base de datos propia).
 
-**2. Caché antes que SQL**
-Toda consulta al PMS pasa primero por Redis. TTL de 5 minutos. Si Redis falla, el sistema continúa consultando el PMS directamente sin interrumpirse.
+**2. Caché antes que Wubook**
+Toda consulta de disponibilidad pasa primero por Redis (TTL 15 min). Si Wubook falla, Sofía responde con datos de contacto del hotel — nunca un error técnico al huésped.
 
 **3. Errores siempre como JSON**
-Ningún endpoint devuelve HTML de error. El error handler global garantiza respuestas JSON en todos los casos.
+El error handler global garantiza respuestas JSON en todos los casos, incluso en endpoints SSE.
 
 ---
 
-## Inventario de referencia — Hotel de prueba
+## Plan de desarrollo
 
-El sistema soporta múltiples tipos de habitación configurables por hotel. Durante el desarrollo se trabaja con un hotel de prueba con tipos de habitación representativos del segmento 3-4★: habitaciones individuales, dobles, suites y categorías premium.
-
----
-
-## Plan de desarrollo — 50 días
-
-| Fase | Días | Estado |
-|------|------|--------|
-| 1 — Exploración & Setup | 1–10 | 🟡 En curso |
-| 2 — Backend & Conector PMS | 11–20 | ⬜ Pendiente |
-| 3 — IA & Voz | 21–30 | ⬜ Pendiente |
-| 4 — Widget & Piloto | 31–40 | ⬜ Pendiente |
-| 5 — Dashboard & Lanzamiento | 41–50 | ⬜ Pendiente |
+| Sesión | Descripción | Estado |
+|--------|-------------|--------|
+| 1–4 + limpieza | Setup, agente Sofía, widget, Wubook | ✅ |
+| 5 | Streaming SSE | ✅ |
+| 6 | Deploy producción Railway, CORS, auth | ✅ |
+| 7 | Notificaciones email — Resend | ⬜ |
+| 8 | Instalación en hotel piloto | ⬜ |
+| 9 | Ajustes post-piloto | ⬜ |
+| 10 | Segundo hotel + primer MRR | ⬜ |
 
 ---
 
@@ -231,4 +229,16 @@ Proyecto privado — todos los derechos reservados.
 
 ---
 
-*Construido con disciplina, un día a la vez.*
+*Construido con disciplina, una sesión a la vez.*
+
+
+
+
+
+
+
+
+
+
+
+
