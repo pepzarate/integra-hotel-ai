@@ -1,4 +1,4 @@
-const BACKEND_URL = 'http://localhost:3000';
+const BACKEND_URL = 'https://integra-hotel-ai-production.up.railway.app';
 const HOTEL_NAME = 'Hotel Demo';
 const WELCOME_MSG = `¡Hola! Soy Sofía 👋 Estoy aquí para ayudarte con disponibilidad, precios y reservaciones del ${HOTEL_NAME}. ¿En qué puedo ayudarte?`;
 

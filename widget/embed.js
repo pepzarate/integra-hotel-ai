@@ -1,7 +1,7 @@
 (function () {
   // ── Configuración por defecto ─────────────────────────
   const CONFIG = Object.assign({
-    backendUrl: 'http://localhost:3000',
+    backendUrl: 'https://integra-hotel-ai-production.up.railway.app',
     hotelName: 'Hotel',
     primaryColor: '#2E7DAF',
     darkColor: '#1a5f8a',
