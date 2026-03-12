@@ -125,7 +125,7 @@
 
     if (isOpen && !initialized) {
       initialized = true;
-      appendMessage('sofia', WELCOME_MSG);
+      appendMessage('sofia', CONFIG.welcomeMsg);
       document.getElementById('sofia-input').focus();
     }
 
@@ -149,18 +149,18 @@
 
       const messages = document.getElementById('sofia-messages');
       const row = document.createElement('div');
-      row.className = 'msg-row sofia';
+      row.className = 'sofia-msg-row sofia';
       row.id = id;
       row.innerHTML = `
-            <div class="msg-avatar">🌊</div>
-            <div class="msg-bubble sofia"></div>
-        `;
+        <div class="sofia-msg-avatar">🌊</div>
+        <div class="sofia-msg-bubble sofia"></div>
+      `;
       messages.appendChild(row);
     }
 
     const row = document.getElementById(id);
     if (!row) return;
-    const bubble = row.querySelector('.msg-bubble');
+    const bubble = row.querySelector('.sofia-msg-bubble');
     if (!bubble) return;
     bubble.innerHTML = parseMarkdown(text) + '<span class="sofia-cursor">▋</span>';
 
@@ -188,7 +188,7 @@
       const params = new URLSearchParams({ message });
       if (sessionId) params.append('session_id', sessionId);
 
-      const response = await fetch(`${BACKEND_URL}/chat/stream?${params}`);
+      const response = await fetch(`${CONFIG.backendUrl}/chat/stream?${params}`);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -283,17 +283,17 @@
     const container = document.getElementById('sofia-messages');
 
     const row = document.createElement('div');
-    row.className = `msg-row ${from}`;
+    row.className = `sofia-msg-row ${from}`;
 
     if (from === 'sofia') {
       const avatar = document.createElement('div');
-      avatar.className = 'msg-avatar';
+      avatar.className = 'sofia-msg-avatar';
       avatar.textContent = '🌊';
       row.appendChild(avatar);
     }
 
     const bubble = document.createElement('div');
-    bubble.className = `msg-bubble ${from}`;
+    bubble.className = `sofia-msg-bubble ${from}`;
     bubble.innerHTML = parseMarkdown(text);
     row.appendChild(bubble);
 
@@ -314,20 +314,20 @@
 
     const container = document.getElementById('sofia-messages');
     const row = document.createElement('div');
-    row.className = 'msg-row';
+    row.className = 'sofia-msg-row';
     row.id = 'typing-row';
 
     const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
+    avatar.className = 'sofia-msg-avatar';
     avatar.textContent = '🌊';
 
     const indicator = document.createElement('div');
-    indicator.className = 'typing-indicator';
+    indicator.className = 'sofia-typing';
     indicator.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-      `;
+        <div class="sofia-dot"></div>
+        <div class="sofia-dot"></div>
+        <div class="sofia-dot"></div>
+    `;
 
     row.appendChild(avatar);
     row.appendChild(indicator);
