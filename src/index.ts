@@ -176,7 +176,7 @@ function requireAdminToken(req: Request, res: Response, next: NextFunction) {
 }
 
 // ── PRE-RESERVACIONES ─────────────────────────────────
-app.get('/prereservaciones', wrap(async (_req, res) => {
+app.get('/prereservaciones', requireAdminToken, wrap(async (_req, res) => {
   const registros = await getPrereservaciones();
   res.json({
     total: registros.length,
