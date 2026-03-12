@@ -165,7 +165,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
+app.listen(Number(PORT), '0.0.0.0', async () => {
   console.log(`\n✓ Integra Hotel AI corriendo en http://localhost:${PORT}`);
 
   // Cargar catálogo Wubook
