@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -19,7 +19,22 @@ app.use((req, res, next) => {
     helmet()(req, res, next);
   }
 });
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  'https://integra-hotel-ai-production.up.railway.app', // el propio backend (dev.html)
+  'http://localhost:3000',                               // desarrollo local
+  // Cuando tengas el dominio del hotel piloto, agrégalo aquí:
+  'https://hotelfrontiere.com/',
+  'https://microcallidf-15.app.exur.com/',
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS bloqueado para origen: ${origin}`));
+  },
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 
@@ -149,6 +164,16 @@ app.get('/chat/stream', async (req, res) => {
     res.end();
   }
 });
+
+// Middleware de autenticación — solo para rutas admin
+function requireAdminToken(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers['x-admin-token'];
+  if (!token || token !== process.env.ADMIN_TOKEN) {
+    res.status(401).json({ error: 'No autorizado' });
+    return;
+  }
+  next();
+}
 
 // ── PRE-RESERVACIONES ─────────────────────────────────
 app.get('/prereservaciones', wrap(async (_req, res) => {
