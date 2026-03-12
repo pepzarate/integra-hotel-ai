@@ -139,7 +139,21 @@ export async function fetchAvailability(
         });
     }
 
-    return resultado.sort((a, b) => a.price - b.price);
+    console.log('[DEBUG] Habitaciones antes de filtrar:',
+        resultado.map(r => ({ name: r.name, occupancy: r.occupancy }))
+    );
+
+    const mejorPorNombreBase = new Map<string, RoomAvailability>();
+
+    for (const room of resultado) {
+        const nombreBase = room.name.replace(/\s+\d+\s*pax$/i, '').trim();
+        const existente = mejorPorNombreBase.get(nombreBase);
+        if (!existente || room.occupancy < existente.occupancy) {
+            mejorPorNombreBase.set(nombreBase, room);
+        }
+    }
+
+    return Array.from(mejorPorNombreBase.values()).sort((a, b) => a.price - b.price);
 }
 
 // ── Utilidad ──────────────────────────────────────────────
