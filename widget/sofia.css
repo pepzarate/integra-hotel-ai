@@ -61,7 +61,7 @@ body {
     width: 60px;
     height: 60px;
     border-radius: 20px;
-    background: linear-gradient(135deg, #2E7DAF, #1a5f8a);
+    background: linear-gradient(135deg, #b8312f, #3e3e3e);
     border: none;
     cursor: pointer;
     box-shadow: 0 8px 32px rgba(46, 125, 175, 0.5), 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -147,7 +147,7 @@ body {
 
 /* Header */
 #sofia-header {
-    background: linear-gradient(135deg, #2E7DAF, #1a5f8a);
+    background: linear-gradient(135deg, #b8312f, #3e3e3e);
     padding: 16px 20px;
     display: flex;
     align-items: center;
@@ -280,7 +280,8 @@ body {
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2E7DAF, #1a5f8a);
+    background: #ffffff;
+    border: 1.5px solid #e8e8e8;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -304,7 +305,7 @@ body {
 }
 
 .msg-bubble.user {
-    background: linear-gradient(135deg, #2E7DAF, #1a5f8a);
+    background: linear-gradient(135deg, #b8312f, #3e3e3e);
     color: #fff;
     border-radius: 18px 18px 4px 18px;
 }
@@ -377,7 +378,7 @@ body {
 }
 
 #sofia-input:focus {
-    border-color: #2E7DAF;
+    border-color: #b8312f;
 }
 
 #sofia-input::placeholder {
@@ -392,7 +393,7 @@ body {
 #sofia-send {
     width: 42px;
     height: 42px;
-    background: linear-gradient(135deg, #2E7DAF, #1a5f8a);
+    background: linear-gradient(135deg, #b8312f, #3e3e3e);
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -455,4 +456,35 @@ body {
     50% {
         opacity: 0;
     }
+}
+
+#sofia-suggestions {
+    padding: 12px 16px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #fff;
+    border-top: 1px solid #E8F0F8;
+}
+
+#sofia-suggestions.hidden {
+    display: none;
+}
+
+.sofia-suggestion-btn {
+    background: #F0F6FC;
+    border: 1.5px solid #D0E4F0;
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    color: #b8312f;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+    white-space: nowrap;
+}
+
+.sofia-suggestion-btn:hover {
+    background: #daeeff;
+    border-color: #b8312f;
 }

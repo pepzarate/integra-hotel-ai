@@ -144,8 +144,8 @@ GET /widget/sofia.css
   window.SofiaConfig = {
     backendUrl:   'https://tu-backend.up.railway.app',
     hotelName:    'Hotel Mi Nombre',
-    primaryColor: '#2E7DAF',   // opcional
-    darkColor:    '#1a5f8a',   // opcional
+    primaryColor: '#b8312f',   // opcional
+    darkColor:    '#3e3e3e',   // opcional
     avatar:       '🌊',        // opcional
   };
 

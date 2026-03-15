@@ -1,11 +1,25 @@
 const BACKEND_URL = 'https://integra-hotel-ai-production.up.railway.app';
-const HOTEL_NAME = 'Hotel Demo';
+const HOTEL_NAME = 'Hotel Frontiere';
 const WELCOME_MSG = `¡Hola! Soy Sofía 👋 Estoy aquí para ayudarte con disponibilidad, precios y reservaciones del ${HOTEL_NAME}. ¿En qué puedo ayudarte?`;
+const AVATAR_URL = 'https://content.app-sources.com/s/33999217963244997/uploads/svg/FAVICON-9287264.ico';
 
 let sessionId = localStorage.getItem('sofia_session_id') || null;
 let isOpen = false;
 let isTyping = false;
 let initialized = false;
+
+
+// Función helper — detecta si es URL o emoji:
+function renderAvatar(el) {
+    if (AVATAR_URL.startsWith('http')) {
+        const img = document.createElement('img');
+        img.src = AVATAR_URL;
+        img.style.cssText = 'width:24px;height:24px;border-radius:50%;object-fit:cover;';
+        el.appendChild(img);
+    } else {
+        el.textContent = AVATAR_URL;
+    }
+}
 
 // ── Abrir / cerrar ──────────────────────────────────────
 function toggleWidget() {
@@ -22,6 +36,7 @@ function toggleWidget() {
         initialized = true;
         appendMessage('sofia', WELCOME_MSG);
         document.getElementById('sofia-input').focus();
+        initSuggestions();
     }
 
     if (isOpen) {
@@ -46,10 +61,13 @@ function updateStreamBubble(id, text) {
         const row = document.createElement('div');
         row.className = 'msg-row sofia';
         row.id = id;
-        row.innerHTML = `
-            <div class="msg-avatar">🌊</div>
-            <div class="msg-bubble sofia"></div>
-        `;
+        const avatarEl = document.createElement('div');
+        avatarEl.className = 'sofia-msg-avatar';
+        renderAvatar(avatarEl);
+        const bubbleEl = document.createElement('div');
+        bubbleEl.className = 'sofia-msg-bubble sofia';
+        row.appendChild(avatarEl);
+        row.appendChild(bubbleEl);
         messages.appendChild(row);
     }
 
@@ -67,6 +85,7 @@ async function sendMessage() {
     const message = input.value.trim();
     if (!message || isTyping) return;
 
+    hideSuggestions();
     input.value = '';
     isTyping = true;
     input.disabled = true;
@@ -183,7 +202,7 @@ function appendMessage(from, text) {
     if (from === 'sofia') {
         const avatar = document.createElement('div');
         avatar.className = 'msg-avatar';
-        avatar.textContent = '🌊';
+        renderAvatar(avatar);
         row.appendChild(avatar);
     }
 
@@ -214,7 +233,7 @@ function showTyping() {
 
     const avatar = document.createElement('div');
     avatar.className = 'msg-avatar';
-    avatar.textContent = '🌊';
+    renderAvatar(avatar);
 
     const indicator = document.createElement('div');
     indicator.className = 'typing-indicator';
@@ -251,6 +270,28 @@ function handleKey(e) {
         e.preventDefault();
         sendMessage();
     }
+}
+
+function initSuggestions() {
+    const container = document.getElementById('sofia-suggestions');
+    if (!container) return;
+
+    const buttons = container.querySelectorAll('.sofia-suggestion-btn');
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Poner el texto en el input y enviar
+            const input = document.getElementById('sofia-input');
+            input.value = btn.textContent.replace(/^[^\w¿]+/, '').trim();
+            hideSuggestions();
+            sendMessage();
+        });
+    });
+}
+
+function hideSuggestions() {
+    const container = document.getElementById('sofia-suggestions');
+    if (container) container.classList.add('hidden');
 }
 
 document.getElementById('sofia-toggle').addEventListener('click', toggleWidget);

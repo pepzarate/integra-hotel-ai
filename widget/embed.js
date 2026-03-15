@@ -2,22 +2,23 @@
   // ── Configuración por defecto ─────────────────────────
   const CONFIG = Object.assign({
     backendUrl: 'https://integra-hotel-ai-production.up.railway.app',
-    hotelName: 'Hotel',
-    primaryColor: '#2E7DAF',
-    darkColor: '#1a5f8a',
-    avatar: '🌊',
+    hotelName: 'Hotel Frontiere',
+    primaryColor: '#b8312f',
+    darkColor: '#3e3e3e',
+    avatar: 'https://content.app-sources.com/s/33999217963244997/uploads/svg/FAVICON-9287264.ico',
     welcomeMsg: null,
   }, window.SofiaConfig || {});
 
   CONFIG.welcomeMsg = CONFIG.welcomeMsg ||
     `¡Hola! Soy Sofía 👋 Estoy aquí para ayudarte con disponibilidad, precios y reservaciones del ${CONFIG.hotelName}. ¿En qué puedo ayudarte?`;
 
-  // ── Inyectar estilos ──────────────────────────────────
   // ── Inyectar fuente ───────────────────────────────────
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
   fontLink.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap';
   document.head.appendChild(fontLink);
+
+  // ── Inyectar estilos ──────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
     #sofia-widget*{box-sizing:border-box;margin:0;padding:0;font-family:'DM Sans',sans-serif;}
@@ -46,7 +47,7 @@
     .sofia-msg-row{display:flex;align-items:flex-end;gap:8px;animation:sofia-in .3s cubic-bezier(.34,1.2,.64,1);}
     @keyframes sofia-in{from{opacity:0;transform:translateY(10px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
     .sofia-msg-row.user{justify-content:flex-end;}
-    .sofia-msg-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,${CONFIG.primaryColor},${CONFIG.darkColor});display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+    .sofia-msg-avatar{width:30px;height:30px;border-radius:50%;background:#ffffff;border:1.5px solid #e8e8e8;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
     .sofia-msg-bubble{max-width:76%;padding:11px 15px;font-size:14px;line-height:1.55;border-radius:18px;}
     .sofia-msg-bubble.sofia{background:#fff;color:#1a2f45;border-radius:18px 18px 18px 4px;box-shadow:0 2px 8px rgba(0,0,0,.07);}
     .sofia-msg-bubble.user{background:linear-gradient(135deg,${CONFIG.primaryColor},${CONFIG.darkColor});color:#fff;border-radius:18px 18px 4px 18px;}
@@ -55,6 +56,10 @@
     .sofia-dot:nth-child(2){animation-delay:.2s;}
     .sofia-dot:nth-child(3){animation-delay:.4s;}
     @keyframes sofia-typing{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}
+    #sofia-suggestions{padding:12px 16px 12px;display:flex;flex-wrap:wrap;gap:8px;background:#fff;border-top:1px solid #E8F0F8;}
+    #sofia-suggestions.hidden{display:none;}
+    .sofia-suggestion-btn{background:#F0F6FC;border:1.5px solid #D0E4F0;border-radius:20px;padding:7px 14px;font-size:13px;font-family:'DM Sans',sans-serif;color:${CONFIG.primaryColor};cursor:pointer;transition:background .2s,border-color .2s;white-space:nowrap;}
+    .sofia-suggestion-btn:hover{background:#daeeff;border-color:${CONFIG.primaryColor};}
     #sofia-input-area{padding:14px 16px;background:#fff;border-top:1px solid #E8F0F8;display:flex;gap:10px;align-items:center;flex-shrink:0;}
     #sofia-input{flex:1;background:#F0F6FC;border:1.5px solid #D0E4F0;border-radius:22px;padding:10px 18px;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a2f45;outline:none;transition:border-color .2s;}
     #sofia-input:focus{border-color:${CONFIG.primaryColor};}
@@ -67,6 +72,18 @@
     @media(max-width:420px){#sofia-widget{bottom:16px;right:16px;}#sofia-window{width:calc(100vw - 32px);right:0;}}
   `;
   document.head.appendChild(style);
+
+  // ── Helper: renderizar avatar (URL o emoji) ───────────
+  function renderAvatar(el) {
+    if (CONFIG.avatar.startsWith('http')) {
+      const img = document.createElement('img');
+      img.src = CONFIG.avatar;
+      img.style.cssText = 'width:24px;height:24px;border-radius:50%;object-fit:cover;';
+      el.appendChild(img);
+    } else {
+      el.textContent = CONFIG.avatar;
+    }
+  }
 
   // ── Inyectar HTML ─────────────────────────────────────
   const widget = document.createElement('div');
@@ -83,7 +100,7 @@
     </button>
     <div id="sofia-window">
       <div id="sofia-header">
-        <div class="sofia-avatar">${CONFIG.avatar}</div>
+        <div class="sofia-avatar" id="sofia-header-avatar"></div>
         <div class="sofia-header-info">
           <div class="sofia-header-name">Sofía</div>
           <div class="sofia-header-status">
@@ -94,6 +111,11 @@
         <button id="sofia-close">×</button>
       </div>
       <div id="sofia-messages"></div>
+      <div id="sofia-suggestions">
+        <button class="sofia-suggestion-btn">📅 Quiero reservar una habitación</button>
+        <button class="sofia-suggestion-btn">🕐 ¿A qué hora es el check-in?</button>
+        <button class="sofia-suggestion-btn">🛎️ ¿Qué servicios incluye el hotel?</button>
+      </div>
       <div id="sofia-input-area">
         <input type="text" id="sofia-input" placeholder="Escribe tu mensaje..." />
         <button id="sofia-send">
@@ -106,6 +128,9 @@
     </div>
   `;
   document.body.appendChild(widget);
+
+  // Renderizar avatar del header después de inyectar el HTML
+  renderAvatar(document.getElementById('sofia-header-avatar'));
 
   // ── Lógica ────────────────────────────────────────────
   let sessionId = localStorage.getItem('sofia_session_id') || null;
@@ -127,6 +152,7 @@
       initialized = true;
       appendMessage('sofia', CONFIG.welcomeMsg);
       document.getElementById('sofia-input').focus();
+      initSuggestions();
     }
 
     if (isOpen) {
@@ -134,7 +160,7 @@
     }
   }
 
-  // ── Enviar mensaje ──────────────────────────────────────
+  // ── Streaming SSE ─────────────────────────────────────
 
   function appendStreamBubble(id) {
     window._pendingBubbleId = id;
@@ -151,10 +177,16 @@
       const row = document.createElement('div');
       row.className = 'sofia-msg-row sofia';
       row.id = id;
-      row.innerHTML = `
-        <div class="sofia-msg-avatar">🌊</div>
-        <div class="sofia-msg-bubble sofia"></div>
-      `;
+
+      const avatarEl = document.createElement('div');
+      avatarEl.className = 'sofia-msg-avatar';
+      renderAvatar(avatarEl);
+
+      const bubbleEl = document.createElement('div');
+      bubbleEl.className = 'sofia-msg-bubble sofia';
+
+      row.appendChild(avatarEl);
+      row.appendChild(bubbleEl);
       messages.appendChild(row);
     }
 
@@ -167,17 +199,20 @@
     document.getElementById('sofia-messages').scrollTop = 99999;
   }
 
+  // ── Enviar mensaje ────────────────────────────────────
+
   async function sendMessage() {
     const input = document.getElementById('sofia-input');
     const message = input.value.trim();
     if (!message || isTyping) return;
 
+    hideSuggestions();
     input.value = '';
     isTyping = true;
     input.disabled = true;
 
     appendMessage('user', message);
-    showTyping(); // Mostrar indicador inmediatamente
+    showTyping();
 
     const bubbleId = 'sofia-msg-' + Date.now();
     window._pendingBubbleId = bubbleId;
@@ -233,7 +268,7 @@
       }
       updateStreamBubble(bubbleId, 'No se pudo conectar con el servidor.');
     } finally {
-      // Quitar cursor al terminar
+      // Quitar cursor parpadeante al terminar
       const finalRow = document.getElementById(bubbleId);
       if (finalRow) {
         const cursor = finalRow.querySelector('.sofia-cursor');
@@ -245,7 +280,7 @@
     }
   }
 
-  // ── Convertir markdown básico a HTML ───────────────────
+  // ── Markdown básico → HTML ────────────────────────────
   function parseMarkdown(text) {
     const lines = text.split('\n');
     let html = '';
@@ -278,7 +313,7 @@
     return html;
   }
 
-  // ── Renderizar mensajes ─────────────────────────────────
+  // ── Renderizar mensajes ───────────────────────────────
   function appendMessage(from, text) {
     const container = document.getElementById('sofia-messages');
 
@@ -288,7 +323,7 @@
     if (from === 'sofia') {
       const avatar = document.createElement('div');
       avatar.className = 'sofia-msg-avatar';
-      avatar.textContent = '🌊';
+      renderAvatar(avatar);
       row.appendChild(avatar);
     }
 
@@ -306,7 +341,7 @@
     }
   }
 
-  // ── Indicador de escritura ──────────────────────────────
+  // ── Indicador de escritura ────────────────────────────
   function showTyping() {
     isTyping = true;
     document.getElementById('sofia-input').disabled = true;
@@ -319,14 +354,14 @@
 
     const avatar = document.createElement('div');
     avatar.className = 'sofia-msg-avatar';
-    avatar.textContent = '🌊';
+    renderAvatar(avatar);
 
     const indicator = document.createElement('div');
     indicator.className = 'sofia-typing';
     indicator.innerHTML = `
-        <div class="sofia-dot"></div>
-        <div class="sofia-dot"></div>
-        <div class="sofia-dot"></div>
+      <div class="sofia-dot"></div>
+      <div class="sofia-dot"></div>
+      <div class="sofia-dot"></div>
     `;
 
     row.appendChild(avatar);
@@ -345,7 +380,27 @@
     if (typingRow) typingRow.remove();
   }
 
-  // ── Utilidades ──────────────────────────────────────────
+  // ── Sugerencias rápidas ───────────────────────────────
+  function initSuggestions() {
+    const container = document.getElementById('sofia-suggestions');
+    if (!container) return;
+
+    container.querySelectorAll('.sofia-suggestion-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById('sofia-input');
+        input.value = btn.textContent.replace(/^[^\w¿]+/, '').trim();
+        hideSuggestions();
+        sendMessage();
+      });
+    });
+  }
+
+  function hideSuggestions() {
+    const container = document.getElementById('sofia-suggestions');
+    if (container) container.classList.add('hidden');
+  }
+
+  // ── Utilidades ────────────────────────────────────────
   function scrollToBottom() {
     const messages = document.getElementById('sofia-messages');
     messages.scrollTop = messages.scrollHeight;
