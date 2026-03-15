@@ -24,7 +24,9 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',                               // desarrollo local
   // Cuando tengas el dominio del hotel piloto, agrégalo aquí:
   'https://hotelfrontiere.com/',
+  'https://hotelfrontiere.com',
   'https://microcallidf-15.app.exur.com/',
+  'https://microcallidf-15.app.exur.com',
 ];
 
 app.use(cors({
