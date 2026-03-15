@@ -184,7 +184,11 @@ app.get('/prereservaciones', requireAdminToken, wrap(async (_req, res) => {
   });
 }));
 
-app.use('/widget', express.static(path.join(__dirname, '../widget')));
+app.use('/widget', (req, res, next) => {
+  // Permitir que cualquier sitio cargue los archivos del widget
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, '../widget')));
 
 app.use(errorHandler);
 
