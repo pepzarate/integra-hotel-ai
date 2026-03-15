@@ -139,14 +139,12 @@ export async function fetchAvailability(
         });
     }
 
-    console.log('[DEBUG] Habitaciones antes de filtrar:',
-        resultado.map(r => ({ name: r.name, occupancy: r.occupancy }))
-    );
-
     const mejorPorNombreBase = new Map<string, RoomAvailability>();
 
     for (const room of resultado) {
-        const nombreBase = room.name.replace(/\s+\d+\s*pax$/i, '').trim();
+        const nombreBase = room.name
+            .replace(/\s*[-–(]?\s*\d+\s*(pax\.?|personas?|persons?|huéspedes?|adults?)\s*\)?$/i, '')
+            .trim();
         const existente = mejorPorNombreBase.get(nombreBase);
         if (!existente || room.occupancy < existente.occupancy) {
             mejorPorNombreBase.set(nombreBase, room);
