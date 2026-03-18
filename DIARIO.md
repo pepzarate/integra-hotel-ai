@@ -383,19 +383,196 @@ Durante la sesión se expuso accidentalmente una API Key de OpenAI en el chat. L
 
 ---
 
-## Roadmap — Plan v2.0
 
-El plan original de 50 días se reformuló. El MVP es un widget de chat (no voz), con un horizonte de 10 sesiones de trabajo.
+
+## Sesión 5 — Streaming en tiempo real
+
+**Fecha:** Miércoles 11 de marzo 2026
+**Horas trabajadas:** ~3 horas
+**Estado al cierre:** ✅ Sofía responde con streaming SSE — primera palabra visible en menos de 1 segundo
+
+### Lo que construí
+
+**`streamWithSofia()` en `sofia.ts`:**
+Nueva función paralela a `chatWithSofia` que usa `stream: true` en la llamada a OpenAI. Los tokens llegan fragmentados via `for await` y se envían al cliente inmediatamente a través de un callback `onToken`. El loop maneja correctamente el caso donde Sofía necesita ejecutar function calls antes de generar texto — acumula los tool calls fragmentados, los ejecuta, agrega los resultados al historial y continúa el stream para la respuesta final.
+
+**Endpoint `GET /chat/stream`:**
+Nuevo endpoint SSE en `index.ts`. Usa GET en lugar de POST para compatibilidad con `fetch` + streams. Configura los headers `Content-Type: text/event-stream`, `Cache-Control: no-cache` y `Connection: keep-alive`. Cada token se envía como `data: {"token":"..."}` y al terminar envía `data: {"done":true, "session_id":"..."}` para que el widget actualice la sesión.
+
+**Widget — indicador de escritura + transición suave:**
+El flujo de UX quedó así:
+1. Usuario envía mensaje → aparecen los 3 puntos animados inmediatamente
+2. Llega el primer token de OpenAI → los 3 puntos desaparecen, aparece la burbuja de Sofía
+3. Los tokens van apareciendo en tiempo real con el cursor parpadeante `▋`
+4. Al recibir `done: true` → el cursor desaparece y la burbuja queda estática
+
+### Problemas encontrados
+
+**Problema 1 — Doble `showTyping()` y burbuja duplicada**
+`sendMessage` llamaba `showTyping()` directamente y `appendStreamBubble` también lo llamaba, creando dos `typing-row` en el DOM. Además `appendStreamBubble` creaba la burbuja con el id antes de tiempo, y `updateStreamBubble` intentaba crear otra con el mismo id — `getElementById` devolvía la primera (vacía) y el texto nunca aparecía.
+
+*Solución:* Centralizar la responsabilidad. `sendMessage` llama `showTyping()` y guarda `window._pendingBubbleId`. `appendStreamBubble` queda vacía — solo existe para mantener compatibilidad. `updateStreamBubble` detecta la primera llamada por `_pendingBubbleId`, ejecuta `hideTyping()` y crea la burbuja real en ese momento.
+
+**Problema 2 — Variables con nombres diferentes a los asumidos**
+El código del widget usaba `isTyping`, `sessionId`, `showTyping()` y `hideTyping()` — nombres distintos a los que se usaron en el primer borrador del streaming. Causó varios `ReferenceError` en consola.
+
+*Aprendizaje:* Antes de agregar código nuevo a un archivo existente, revisar las variables globales declaradas al inicio. Hubiera evitado dos iteraciones de debug.
+
+### Decisión de UX
+
+Se evaluó poner un `setTimeout` fijo de 2 segundos antes de mostrar los tokens para que la experiencia se sintiera más "humana". Se descartó — el delay artificial ralentiza la experiencia en conversaciones largas y se siente falso. La solución adoptada usa el delay natural del primer token de OpenAI (0.5–1.5 segundos), que es honesto y suficiente para crear la sensación de que alguien está pensando al otro lado.
+
+### Pendiente
+
+- `embed.js` — sincronizar con los cambios de streaming antes de la Sesión 6
+
+### Reflexión
+
+El streaming es la diferencia entre un chatbot y una conversación. Ver las palabras aparecer una por una — aunque sea rápido — activa en el usuario la sensación de que hay algo vivo al otro lado. Es el cambio de experiencia más grande desde que el widget apareció por primera vez en pantalla.
+
+---
+
+## Sesión 6 — Deploy a producción
+
+**Fecha:** Jueves 12 de marzo 2026
+**Horas trabajadas:** ~3 horas
+**Estado al cierre:** ✅ Stack completo funcionando en producción con HTTPS
+
+### Lo que construí
+
+**Sincronización de `embed.js` (BUG-01):**
+Al revisar `embed.js` contra `sofia.js` el trabajo fue menor al estimado — el streaming ya estaba replicado. Pero la revisión destapó 4 bugs silenciosos que `sofia.js` no tenía porque usa variables globales directas mientras `embed.js` usa el objeto `CONFIG`:
+- `BACKEND_URL` no definida en `sendMessage` → `ReferenceError` en runtime
+- `WELCOME_MSG` no definida en `toggleWidget` → `ReferenceError` en runtime
+- Clases CSS sin prefijo `sofia-` en elementos creados dinámicamente → widget sin estilos
+- `querySelector('.msg-bubble')` sin prefijo → el stream llegaba pero nunca se renderizaba
+
+El cuarto bug fue el más difícil de encontrar — el servidor entregaba tokens correctamente, los logs del backend estaban limpios, pero la burbuja de Sofía nunca aparecía. El culpable: `querySelector` buscando `.msg-bubble` en un elemento que ya tenía la clase `.sofia-msg-bubble`.
+
+**Deploy en Railway:**
+Conecté el repo GitHub a Railway con deploy automático desde `main`. Tres problemas en cascada antes de que funcionara:
+
+1. **Comillas extras en Redis** — al copiar las URLs de Upstash, Railway las guardó con comillas dobles como parte del valor. El cliente Redis lanzaba `UrlError` con `""https://...""`  como URL. Fix: editar cada variable y eliminar las comillas.
+2. **Puerto dinámico** — Railway asigna su propio PORT (resultó ser 8080). El servidor arrancaba en 3000 por el fallback `|| 3000`, pero Railway esperaba el 8080. Fix: eliminar `PORT` de las variables, configurar 8080 en Settings → Networking.
+3. **Servidor en localhost** — Node.js escuchaba en `localhost` y Railway no podía alcanzarlo externamente. Fix: cambiar `app.listen(PORT)` a `app.listen(Number(PORT), '0.0.0.0')`.
+
+**Seguridad mínima antes de abrir al mundo:**
+- CORS restringido con lista `ALLOWED_ORIGINS` — cualquier dominio no autorizado recibe error
+- Middleware `requireAdminToken` en `/prereservaciones` — header `x-admin-token` requerido
+
+### Reflexión
+
+El deploy siempre tiene sus propios bugs. Ninguno de los tres problemas de Railway era predecible desde el código — eran del entorno. Documentarlos aquí para no repetirlos en el siguiente hotel.
+
+La URL `https://integra-hotel-ai-production.up.railway.app/api/status` respondiendo `{"status":"ok"}` desde internet fue una de las mejores sensaciones del proyecto.
+
+---
+
+## Sesión 7 — Email, fechas y datos reales del hotel
+
+**Fecha:** Jueves 12 de marzo 2026 (segunda sesión del día)
+**Horas trabajadas:** ~4 horas
+**Estado al cierre:** ✅ Sofía notifica al recepcionista por email y opera con datos reales del hotel piloto
+
+### Lo que construí
+
+**Notificaciones email con Resend:**
+Cada vez que Sofía captura una pre-reservación, el recepcionista recibe un email automático con todos los datos del huésped. Decidí usar Resend sobre SendGrid por la simplicidad del SDK y el tier gratuito generoso. El template HTML es profesional — header con los colores del hotel, tabla de datos limpia, footer con aviso de que es una pre-reservación pendiente de confirmación.
+
+La decisión de diseño más importante: si el email falla, la pre-reservación **no** se revierte. El dato ya está en PostgreSQL — el email es notificación de conveniencia, no requisito crítico. Fallo silencioso con log de error.
+
+**Fix reservaciones el mismo día:**
+Sofía rechazaba fechas de hoy porque comparaba contra `new Date().toISOString().split('T')[0]` — que en UTC puede ser el día anterior en México. El bug era perfecto: funcionaba todo el día excepto de medianoche a las 6am hora local, cuando el servidor UTC ya era "mañana".
+
+La solución fue reimplementar `validateDates` con `Intl.DateTimeFormat` y `timeZone: 'America/Tijuana'`. Lógica nueva: si la fecha es hoy y son antes de las 20:00 → permitir. Después de las 20:00 → mensaje con hora límite y teléfono del hotel. Agregué parámetro `_testHora` para poder probar los tres escenarios sin esperar horas reales.
+
+**Fix variantes de ocupación duplicadas:**
+Para 3 personas, Sofía mostraba "Doble Twin Superior 3 pax" y "Doble Twin Superior 4 pax" — ambas válidas técnicamente pero confusas para el huésped. Wubook crea variantes del mismo tipo con distinta ocupación máxima.
+
+El fix usa regex para extraer el nombre base eliminando el sufijo `\s+\d+\s*pax$` y agrupa por ese nombre, conservando solo la variante de menor ocupación que satisfaga la búsqueda. Simple y efectivo.
+
+**Datos reales del Hotel Frontiere:**
+Aquí me di cuenta de que seguía operando con datos del Hotel Gillow — el cliente de prueba original. Actualicé `functionExecutor.ts` y el system prompt con la información real del hotel piloto: Hotel Frontiere en Tijuana, sus servicios, distancias clave a puntos de interés (aeropuerto, garitas fronterizas, hospitales) y políticas.
+
+**System prompt v2:**
+El prompt original era funcional pero verbose. Sofía a veces lanzaba dos preguntas en el mismo mensaje, o daba respuestas largas cuando el huésped solo quería un precio. Agregué dos instrucciones concretas: máximo 3 líneas por respuesta, y una pregunta a la vez. La diferencia en la conversación fue inmediata.
+
+**Sugerencias rápidas:**
+Tres botones al abrir el chat: "📅 Quiero reservar una habitación", "🕐 ¿A qué hora es el check-in?", "🛎️ ¿Qué servicios incluye el hotel?". Desaparecen al enviar cualquier mensaje. Reducen la fricción del primer contacto — el huésped no tiene que pensar cómo empezar.
+
+### Problemas encontrados
+
+**Problema 1 — `dev.html` como `file://`**
+Pasé 20 minutos depurando por qué el widget no respondía. El servidor estaba bien, el frontend estaba bien. El problema: abría `dev.html` directamente desde el explorador de archivos. `Origin: null` llegaba al servidor y CORS lo bloqueaba silenciosamente.
+
+*Lección grabada:* Siempre `http://localhost:3000/widget/dev.html`. Nunca `file://`.
+
+**Problema 2 — Log aparentaba doble `create_prereservation`**
+El folio `PRE-XXXXXXXXX` aparecía en dos líneas consecutivas del log de Railway con requests distintos. Investigué asumiendo un bug. Resultado: artefacto del orden de impresión de logs concurrentes — el folio era idéntico en ambas, confirmando una sola llamada.
+
+*Aprendizaje:* En logs de servidor con requests concurrentes, el orden de impresión no implica orden de ejecución.
+
+### Reflexión
+
+La sesión más densa del proyecto en términos de features. Cinco cosas distintas en cuatro horas. Funcionó porque cada feature era independiente — pude entregar y verificar una antes de arrancar la siguiente.
+
+El momento del día: ver el email llegar a mi bandeja de entrada con el folio, el nombre del huésped y las fechas, formateado limpiamente. Ese email es el primer punto de contacto del recepcionista real con Sofía.
+
+---
+
+## Sesión 8 — Sofía en el sitio real del hotel
+
+**Fecha:** Sábado 14 de marzo 2026
+**Horas trabajadas:** ~2 horas
+**Estado al cierre:** ✅ Sofía atendiendo huéspedes en hotelfrontiere.com
+
+### Lo que construí
+
+**Personalización visual para Hotel Frontiere:**
+Colores corporativos `#b8312f` (rojo) y `#3e3e3e` (gris oscuro). El color del hotel tiene mucha personalidad — el widget se ve completamente diferente al azul oceánico del Coastal Light original, pero igualmente profesional.
+
+Para el avatar implementé `renderAvatar()` — una función que detecta si `CONFIG.avatar` es una URL (`startsWith('http')`) o un emoji, y renderiza `<img>` o `textContent` según corresponda. El hotel tiene su favicon en un CDN externo y quedó perfecto como avatar. Lo más importante: ahora cualquier hotel puede configurar su propio logo sin tocar el código.
+
+También cambié el fondo del avatar en los mensajes: de gradiente azul a blanco con borde gris sutil. El favicon del hotel destaca mucho más sobre fondo blanco — antes el gradiente le comía protagonismo al logo.
+
+**Instalación en hotelfrontiere.com (Exur):**
+El sitio del hotel usa Exur, un constructor web. Pegué las dos líneas de código en el campo de scripts personalizados y esperé. El widget no apareció.
+
+La consola del navegador dio el error: `ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`. No era CORS — era CORP (Cross-Origin-Resource-Policy). Railway enviaba `Cross-Origin-Resource-Policy: same-origin` por defecto en todos los archivos estáticos, impidiendo que `hotelfrontiere.com` cargara `embed.js`.
+
+CORS y CORP son mecanismos distintos y ambos necesarios para widgets embebibles:
+- **CORS** — controla qué dominios pueden hacer `fetch` al servidor
+- **CORP** — controla qué dominios pueden cargar el recurso como `<script>`
+
+Fix: middleware en `/widget/*` que inyecta `Cross-Origin-Resource-Policy: cross-origin` antes de `express.static`. Tres líneas de código, 40 minutos de diagnóstico.
+
+### El momento
+
+Después del fix, recargué `hotelfrontiere.com`. El botón rojo apareció en la esquina inferior derecha. Lo abrí. El favicon del hotel apareció en el header. Escribí "Hola" y Sofía respondió en menos de un segundo, con el nombre correcto del hotel, en producción, en el sitio real.
+
+Hice una pre-reservación de prueba completa — nombre, fechas, habitación, confirmación. El email llegó a mi bandeja en segundos. El registro apareció en `/prereservaciones`.
+
+El stack completo funciona end-to-end en producción.
+
+### Reflexión
+
+Dos horas de trabajo, pero representan todo lo anterior. El Día 1 fue emocionante porque los datos llegaban desde el PMS. Este día fue diferente — más tranquilo, más significativo. El producto está en el mundo.
+
+Lo que queda por hacer es iteración, no construcción. Y eso es exactamente donde quiero estar en la Sesión 8 de 10.
+
+---
+
+## Roadmap — Plan v2.0 actualizado
 
 | Sesión | Estado | Enfoque |
 |--------|--------|---------|
 | 1–4 + limpieza | ✅ Completadas | Base técnica: setup, Sofía, memoria, widget, Wubook |
-| **5** | 🔵 Siguiente | **Streaming** — SSE, tokens en tiempo real, primera palabra < 1s |
-| 6 | ⬜ Pendiente | Deploy producción — Railway/Render, HTTPS, URL pública |
-| 7 | ⬜ Pendiente | Notificaciones — email al recepcionista (SendGrid/Resend) |
-| 8 | ⬜ Pendiente | Instalación en hotel piloto — script en sitio real |
-| 9 | ⬜ Pendiente | Ajustes post-piloto — system prompt v2, bugs reales |
-| 10 | ⬜ Pendiente | Segundo hotel + primer cobro — primer MRR |
+| 5 | ✅ Completada | Streaming SSE, tokens en tiempo real, primera palabra < 1s |
+| 6 | ✅ Completada | Deploy Railway, HTTPS, CORS restringido, auth prereservaciones |
+| 7 | ✅ Completada | Email Resend, fix fechas mismo día, fix ocupación, datos Frontiere, system prompt v2, sugerencias |
+| 8 | ✅ Completada | Colores, avatar favicon, CORP fix, instalación hotelfrontiere.com |
+| **9** | 🔵 Siguiente | **Ajustes post-piloto** — conversaciones reales, system prompt v3 |
+| 10 | ⬜ Pendiente | Segundo hotel + primer MRR |
 
 **Fuera del alcance Fase 1:** voz (Whisper+TTS), dashboard analytics, JWT/API Keys, multi-idioma, panel de inventario propio, WhatsApp.
 
@@ -413,40 +590,19 @@ El plan original de 50 días se reformuló. El MVP es un widget de chat (no voz)
 | 4 | `dia-4: widget coastal light, embed.js autocontenido, markdown parser` | Widget embebible completo |
 | 4 | `feature/wubook-connector` | Conector Wubook XML-RPC, catálogo dinámico, caché Redis 15min |
 | Limpieza | `fix: eliminar dependencia pms obsoleta, fallback wubook, fechas limpias en prereservaciones` | Deuda técnica y casos edge |
+| 5 | `feat: streaming SSE con function calling y transición suave en widget` | Primera palabra visible < 1s |
+| 6 | `fix: sincronizar embed.js con streaming SSE de Sesión 5` | 4 bugs corregidos en embed.js |
+| 6 | `fix: escuchar en 0.0.0.0 para compatibilidad con Railway` | Fix deploy Railway |
+| 6 | `feat: restringir CORS por dominio y autenticación en /prereservaciones` | Seguridad mínima producción |
+| 6 | `docs: README actualizado al estado real del proyecto` | Documentación actualizada |
+| 7 | `fix: permitir reservación el mismo día antes de las 20:00 CDMX` | Fix timezone Tijuana |
+| 7 | `fix: mostrar solo variante de ocupación mínima por tipo de habitación` | Fix variantes Wubook |
+| 7 | `feat: notificación email al recepcionista con Resend al crear pre-reservación` | Email Resend |
+| 7 | `feat: datos Hotel Frontiere, system prompt v2, sugerencias rápidas, fix ocupación mínima` | Datos piloto + UX |
+| 8 | `feat: widget Hotel Frontiere — colores, favicon, sugerencias rápidas, system prompt v2` | Personalización visual |
+| 8 | `fix: agregar CORP cross-origin para permitir carga de embed.js desde sitios externos` | Fix instalación externa |
+| Docs | `docs: documentación completa actualizada al cierre de Sesiones 7 y 8` | README, ARCHITECTURE, REQUIREMENTS, PROJECT_OVERVIEW, CODEBASE_SNAPSHOT, DEV_DIARY |
 
 ---
 
-Sesión 5 — Streaming en tiempo real
-Fecha: Miércoles 11 de marzo 2026
-Horas trabajadas: ~3 horas
-Estado al cierre: ✅ Sofía responde con streaming SSE — primera palabra visible en menos de 1 segundo
-Lo que construí
-streamWithSofia() en sofia.ts:
-Nueva función paralela a chatWithSofia que usa stream: true en la llamada a OpenAI. Los tokens llegan fragmentados via for await y se envían al cliente inmediatamente a través de un callback onToken. El loop maneja correctamente el caso donde Sofía necesita ejecutar function calls antes de generar texto — acumula los tool calls fragmentados, los ejecuta, agrega los resultados al historial y continúa el stream para la respuesta final.
-Endpoint GET /chat/stream:
-Nuevo endpoint SSE en index.ts. Usa GET en lugar de POST para compatibilidad con EventSource y fetch con streams. Configura los headers Content-Type: text/event-stream, Cache-Control: no-cache y Connection: keep-alive. Cada token se envía como data: {"token":"..."} y al terminar envía data: {"done":true, "session_id":"..."} para que el widget actualice la sesión.
-Widget — indicador de escritura + transición suave:
-El flujo de UX quedó así:
-
-Usuario envía mensaje → aparecen los 3 puntos animados inmediatamente
-Llega el primer token de OpenAI → los 3 puntos desaparecen, aparece la burbuja de Sofía
-Los tokens van apareciendo en tiempo real con el cursor parpadeante ▋
-Al recibir done: true → el cursor desaparece y la burbuja queda estática
-
-Problemas encontrados
-Problema 1 — Doble showTyping() y burbuja duplicada
-sendMessage llamaba showTyping() directamente y appendStreamBubble también lo llamaba, creando dos typing-row en el DOM. Además appendStreamBubble creaba la burbuja con el id antes de tiempo, y updateStreamBubble intentaba crear otra con el mismo id — getElementById devolvía la primera (vacía) y el texto nunca aparecía.
-Solución: Centralizar la responsabilidad. sendMessage llama showTyping() y guarda window._pendingBubbleId. appendStreamBubble queda vacía — solo existe para mantener compatibilidad. updateStreamBubble detecta la primera llamada por _pendingBubbleId, ejecuta hideTyping() y crea la burbuja real en ese momento.
-Problema 2 — Variables con nombres diferentes a los asumidos
-El código del widget usaba isTyping, sessionId, showTyping() y hideTyping() — nombres distintos a los que se usaron en el primer borrador del streaming. Causó varios ReferenceError en consola.
-Aprendizaje: Antes de agregar código nuevo a un archivo existente, revisar las variables globales declaradas al inicio. Hubiera evitado dos iteraciones de debug.
-Decisión de UX
-Se evaluó poner un setTimeout fijo de 2 segundos antes de mostrar los tokens para que la experiencia se sintiera más "humana". Se descartó — el delay artificial ralentiza la experiencia en conversaciones largas y se siente falso. La solución adoptada usa el delay natural del primer token de OpenAI (0.5–1.5 segundos), que es honesto y suficiente para crear la sensación de que alguien está pensando al otro lado.
-Pendiente
-
-embed.js — sincronizar con los cambios de streaming antes de la Sesión 6
-
-Reflexión
-El streaming es la diferencia entre un chatbot y una conversación. Ver las palabras aparecer una por una — aunque sea rápido — activa en el usuario la sensación de que hay algo vivo al otro lado. Es el cambio de experiencia más grande desde que el widget apareció por primera vez en pantalla.
-
-*Última actualización: Sesión de limpieza — 11 de marzo 2026*
+*Última actualización: Sesión 8 — 14 de marzo 2026*
